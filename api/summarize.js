@@ -31,12 +31,11 @@ Use this structure:
   "keywords": ["keyword1","keyword2","keyword3","keyword4","keyword5","keyword6","keyword7","keyword8"]
 }
 
-Rules:
-- If title is already provided, improve it only if needed.
-- If source is already provided, use it unless clearly wrong.
-- If publication date is already provided, use it unless clearly wrong.
+Important:
+- publicationDate must be the article's actual publication date, not today's date.
+- If no publication date is available, return an empty string.
 - Keywords should support quick search.
-- Include economics topic keywords such as inflation, unemployment, economic growth, trade, market failure, government policy, competition, market structure, exchange rate, fiscal policy, monetary policy, inequality, if relevant.
+- Include economics topic keywords if relevant.
 
 Provided title: ${title}
 Provided source: ${source}
