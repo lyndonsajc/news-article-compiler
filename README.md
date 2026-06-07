@@ -1,36 +1,90 @@
-# News Article Compiler
+# News Article Compiler - Firebase Firestore Version
 
-A Vercel-ready app for compiling news articles.
+This version saves articles permanently in Firebase Firestore.
 
 ## Features
 
-- User can paste an article URL
-- User can upload a PDF
-- App creates a readable article section
-- AI fills in article title, source, summary and keywords
-- Display page shows saved articles
-- Quick search buttons by date
-- Quick search buttons by keywords
-- Search box searches across title, source, summary, article text and keywords
-- Import/export backup JSON
-- OpenRouter API key is hidden in a Vercel serverless function
+- Paste article URL
+- Upload PDF
+- Generate readable full article text
+- AI fills title, source, publication date, summary and keywords
+- Saves full article to Firebase Firestore
+- Display page with quick search by publication date and keyword
+- Download full database as JSON
+- Import JSON backup into Firestore
 
-## Set up on Vercel
+## Files
 
-1. Upload these files to GitHub.
-2. Import the GitHub repo into Vercel.
-3. In Vercel, go to Project Settings > Environment Variables.
-4. Add:
+- index.html
+- api/summarize.js
+- package.json
 
-OPENROUTER_API_KEY = your OpenRouter key
+## Step 1: Firebase Setup
+
+1. Go to Firebase Console.
+2. Create a new project.
+3. Add a Web App.
+4. Copy your Firebase config.
+5. In `index.html`, replace:
+
+```js
+const firebaseConfig = {
+  apiKey: "PASTE_FIREBASE_API_KEY",
+  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE_PROJECT_ID.appspot.com",
+  messagingSenderId: "PASTE_MESSAGING_SENDER_ID",
+  appId: "PASTE_APP_ID"
+};
+```
+
+with your real Firebase config.
+
+## Step 2: Enable Firestore
+
+1. Firebase Console > Build > Firestore Database
+2. Create database
+3. Start in test mode first
+4. Choose region
+
+For testing, rules can be:
+
+```txt
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /newsArticles/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+Later you should secure it with login.
+
+## Step 3: Vercel Environment Variable
+
+In Vercel, add:
+
+```txt
+OPENROUTER_API_KEY
+```
 
 Optional:
 
+```txt
 OPENROUTER_MODEL = openai/gpt-4o-mini
+```
 
-5. Redeploy.
+## Step 4: Redeploy
 
-## Important
+After changing Firebase config or Vercel environment variables, redeploy on Vercel.
 
-Do not paste your OpenRouter key into `index.html`.
-Do not commit your API key to GitHub.
+## Database Backup
+
+Click:
+
+Download Database JSON
+
+This downloads all articles currently in Firestore as a JSON backup.

@@ -17,135 +17,32 @@
   --red:#dc2626;
   --light:#e5e7eb;
 }
-body{
-  font-family:Arial,sans-serif;
-  margin:0;
-  background:var(--bg);
-  color:#222;
-}
-header{
-  background:var(--dark);
-  color:white;
-  padding:18px;
-}
+body{font-family:Arial,sans-serif;margin:0;background:var(--bg);color:#222}
+header{background:var(--dark);color:white;padding:18px}
 header h1{margin:0 0 6px}
 header p{margin:0;color:#d1d5db}
-main{
-  max-width:1150px;
-  margin:auto;
-  padding:16px;
-}
-.card{
-  background:var(--card);
-  border-radius:14px;
-  padding:16px;
-  margin-bottom:16px;
-  box-shadow:0 2px 10px #0001;
-}
-input,textarea,button,select{
-  width:100%;
-  box-sizing:border-box;
-  margin:6px 0;
-  padding:10px;
-  border-radius:9px;
-  border:1px solid #ccc;
-  font-size:15px;
-}
-textarea{
-  min-height:180px;
-  line-height:1.5;
-}
-button{
-  background:var(--blue);
-  color:white;
-  border:none;
-  cursor:pointer;
-  font-weight:bold;
-}
+main{max-width:1150px;margin:auto;padding:16px}
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px #0001}
+input,textarea,button,select{width:100%;box-sizing:border-box;margin:6px 0;padding:10px;border-radius:9px;border:1px solid #ccc;font-size:15px}
+textarea{min-height:180px;line-height:1.5}
+button{background:var(--blue);color:white;border:none;cursor:pointer;font-weight:bold}
 button:hover{opacity:.92}
 button.secondary{background:var(--gray)}
 button.danger{background:var(--red)}
-.row{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-}
-.article{
-  border:1px solid #ddd;
-  border-radius:12px;
-  padding:14px;
-  margin-bottom:14px;
-  background:#fff;
-}
-.article h3{
-  margin:0 0 6px;
-}
-.small{
-  font-size:13px;
-  color:#666;
-}
-.readable{
-  white-space:pre-wrap;
-  line-height:1.6;
-  background:#f9fafb;
-  padding:12px;
-  border-radius:10px;
-  border:1px solid #ddd;
-  margin-top:8px;
-  max-height:420px;
-  overflow:auto;
-}
-.quickBtn,.keywordBtn{
-  display:inline-block;
-  width:auto;
-  margin:4px;
-  padding:7px 11px;
-  font-size:13px;
-  border-radius:999px;
-  background:#e5e7eb;
-  color:#111827;
-}
-.activeBtn{
-  background:#2563eb !important;
-  color:white !important;
-}
-.status{
-  font-size:14px;
-  color:#374151;
-  background:#f3f4f6;
-  border-radius:10px;
-  padding:10px;
-  margin-top:8px;
-}
-.summaryBox{
-  background:#f9fafb;
-  border-left:4px solid var(--blue);
-  padding:10px;
-  border-radius:8px;
-  white-space:pre-wrap;
-}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.article{border:1px solid #ddd;border-radius:12px;padding:14px;margin-bottom:14px;background:#fff}
+.article h3{margin:0 0 6px}
+.small{font-size:13px;color:#666}
+.readable{white-space:pre-wrap;line-height:1.6;background:#f9fafb;padding:12px;border-radius:10px;border:1px solid #ddd;margin-top:8px;max-height:420px;overflow:auto}
+.quickBtn,.keywordBtn{display:inline-block;width:auto;margin:4px;padding:7px 11px;font-size:13px;border-radius:999px;background:#e5e7eb;color:#111827}
+.activeBtn{background:#2563eb !important;color:white !important}
+.status{font-size:14px;color:#374151;background:#f3f4f6;border-radius:10px;padding:10px;margin-top:8px}
+.summaryBox{background:#f9fafb;border-left:4px solid var(--blue);padding:10px;border-radius:8px;white-space:pre-wrap}
 .hidden{display:none}
-.topbar{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.topbar button{
-  width:auto;
-}
-.badge{
-  display:inline-block;
-  background:#eef2ff;
-  color:#3730a3;
-  border-radius:999px;
-  padding:4px 8px;
-  font-size:12px;
-  margin:2px;
-}
-@media(max-width:720px){
-  .row{grid-template-columns:1fr}
-  .topbar button{width:100%}
-}
+.topbar{display:flex;gap:8px;flex-wrap:wrap}
+.topbar button{width:auto}
+.warning{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:10px;border-radius:10px;font-size:14px}
+@media(max-width:720px){.row{grid-template-columns:1fr}.topbar button{width:100%}}
 </style>
 </head>
 
@@ -153,7 +50,7 @@ button.danger{background:var(--red)}
 
 <header>
   <h1>News Article Compiler</h1>
-  <p>Compile article URLs or PDFs, generate readable sections, summaries and searchable keywords.</p>
+  <p>Firebase version: save full articles, summaries, keywords and URLs permanently in Firestore.</p>
 </header>
 
 <main>
@@ -172,10 +69,13 @@ button.danger{background:var(--red)}
     <input id="source" placeholder="Source e.g. CNA, BBC, Straits Times" />
   </div>
 
-  <input id="url" placeholder="Article URL" />
+  <div class="row">
+    <input id="publicationDate" type="date" title="Publication date" />
+    <input id="url" placeholder="Article URL" />
+  </div>
 
   <h3>Readable Article Section</h3>
-  <textarea id="content" placeholder="Readable article text will appear here. You may also paste article text directly."></textarea>
+  <textarea id="content" placeholder="Full readable article text will appear here. You may also paste article text directly."></textarea>
 
   <button onclick="summarizeWithAI()">Generate Summary + Keywords</button>
 
@@ -185,7 +85,7 @@ button.danger{background:var(--red)}
   <input id="keywords" placeholder="Keywords, separated by commas" />
 
   <div class="row">
-    <button onclick="saveArticle()">Save Article</button>
+    <button onclick="saveArticle()">Save Article to Firestore</button>
     <button class="secondary" onclick="clearForm()">Clear Form</button>
   </div>
 
@@ -195,9 +95,9 @@ button.danger{background:var(--red)}
 <div class="card">
   <h2>Display Page</h2>
 
-  <input id="searchBox" placeholder="Search title, source, summary, article text or keywords" oninput="renderArticles()" />
+  <input id="searchBox" placeholder="Search title, source, summary, full article text or keywords" oninput="renderArticles()" />
 
-  <h3>Quick Search by Date</h3>
+  <h3>Quick Search by Publication Date</h3>
   <div id="dateButtons"></div>
 
   <h3>Quick Search by Keywords</h3>
@@ -205,11 +105,15 @@ button.danger{background:var(--red)}
 
   <div class="topbar">
     <button class="secondary" onclick="clearFilters()">Show All Articles</button>
-    <button class="secondary" onclick="exportData()">Export Backup</button>
-    <button class="secondary" onclick="document.getElementById('importFile').click()">Import Backup</button>
+    <button class="secondary" onclick="downloadDatabase()">Download Database JSON</button>
+    <button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON to Firestore</button>
   </div>
 
-  <input id="importFile" class="hidden" type="file" accept=".json" onchange="importData(event)" />
+  <input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)" />
+
+  <p class="warning">
+    Articles are saved in Firebase Firestore. The database download is a JSON backup of all articles currently loaded from Firestore.
+  </p>
 </div>
 
 <div class="card">
@@ -219,27 +123,63 @@ button.danger{background:var(--red)}
 
 </main>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  setDoc,
+  doc,
+  deleteDoc,
+  getDocs,
+  serverTimestamp,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-let db;
+/*
+  STEP 1:
+  Replace the firebaseConfig below with your own Firebase web app config.
+
+  Firebase Console:
+  Project Settings → General → Your apps → Web app → Firebase SDK config
+*/
+const firebaseConfig = {
+  apiKey: "PASTE_FIREBASE_API_KEY",
+  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE_PROJECT_ID.appspot.com",
+  messagingSenderId: "PASTE_MESSAGING_SENDER_ID",
+  appId: "PASTE_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const ARTICLES_COLLECTION = "newsArticles";
+
+let articlesCache = [];
 let editingId = null;
 let activeDateFilter = "";
 let activeKeywordFilter = "";
 
-const request = indexedDB.open("NewsCompilerDB", 1);
+window.fetchArticleFromUrl = fetchArticleFromUrl;
+window.loadPDF = loadPDF;
+window.summarizeWithAI = summarizeWithAI;
+window.saveArticle = saveArticle;
+window.clearForm = clearForm;
+window.renderArticles = renderArticles;
+window.clearFilters = clearFilters;
+window.downloadDatabase = downloadDatabase;
+window.importDatabase = importDatabase;
+window.filterByDate = filterByDate;
+window.filterByKeyword = filterByKeyword;
+window.editArticle = editArticle;
+window.deleteArticle = deleteArticle;
 
-request.onupgradeneeded = e => {
-  db = e.target.result;
-  if(!db.objectStoreNames.contains("articles")){
-    db.createObjectStore("articles", { keyPath: "id" });
-  }
-};
-
-request.onsuccess = e => {
-  db = e.target.result;
-  renderArticles();
-};
+loadArticlesFromFirestore();
 
 function setStatus(msg){
   const el = document.getElementById("status");
@@ -263,7 +203,6 @@ async function fetchArticleFromUrl(){
   try{
     setStatus("Fetching readable article text...");
 
-    const jinaUrl = "https://r.jina.ai/http://r.jina.ai/http://";
     const readableUrl = rawUrl.startsWith("https://")
       ? "https://r.jina.ai/http://" + rawUrl.replace("https://","")
       : rawUrl.startsWith("http://")
@@ -274,12 +213,14 @@ async function fetchArticleFromUrl(){
     const text = await res.text();
 
     const guessedTitle = text.match(/^Title:\s*(.+)$/m);
+    const guessedDate = guessPublicationDate(text);
     const host = new URL(rawUrl).hostname.replace("www.","");
 
     document.getElementById("url").value = rawUrl;
     document.getElementById("content").value = cleanArticleText(text);
     document.getElementById("title").value = guessedTitle ? guessedTitle[1].trim() : "";
     document.getElementById("source").value = host;
+    if(guessedDate) document.getElementById("publicationDate").value = guessedDate;
 
     clearStatus();
     await summarizeWithAI();
@@ -298,6 +239,33 @@ function cleanArticleText(text){
     .replace(/\[(.*?)\]\((.*?)\)/g,"$1")
     .replace(/\n{3,}/g,"\n\n")
     .trim();
+}
+
+function guessPublicationDate(text){
+  const iso = text.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b/);
+  if(iso){
+    const y = iso[1];
+    const m = String(iso[2]).padStart(2,"0");
+    const d = String(iso[3]).padStart(2,"0");
+    return `${y}-${m}-${d}`;
+  }
+
+  const months = {
+    jan:"01", january:"01", feb:"02", february:"02", mar:"03", march:"03",
+    apr:"04", april:"04", may:"05", jun:"06", june:"06", jul:"07", july:"07",
+    aug:"08", august:"08", sep:"09", sept:"09", september:"09", oct:"10", october:"10",
+    nov:"11", november:"11", dec:"12", december:"12"
+  };
+
+  const m = text.match(/\b(?:Published\s*)?(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?[,]?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2}),?\s+(20\d{2})\b/i);
+  if(m){
+    const month = months[m[1].toLowerCase().replace(".","")];
+    const day = String(m[2]).padStart(2,"0");
+    const year = m[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  return "";
 }
 
 async function loadPDF(event){
@@ -353,6 +321,7 @@ async function summarizeWithAI(){
         url,
         title:document.getElementById("title").value.trim(),
         source:document.getElementById("source").value.trim(),
+        publicationDate:document.getElementById("publicationDate").value,
         content
       })
     });
@@ -365,6 +334,7 @@ async function summarizeWithAI(){
 
     if(parsed.title) document.getElementById("title").value = parsed.title;
     if(parsed.source) document.getElementById("source").value = parsed.source;
+    if(parsed.publicationDate) document.getElementById("publicationDate").value = parsed.publicationDate;
     document.getElementById("summary").value = parsed.summary || "";
     document.getElementById("keywords").value = (parsed.keywords || []).join(", ");
 
@@ -376,122 +346,140 @@ async function summarizeWithAI(){
   }
 }
 
-function saveArticle(){
+async function saveArticle(){
+  const now = new Date().toISOString();
+
   const article = {
-    id: editingId || Date.now().toString(),
     title: document.getElementById("title").value.trim(),
     source: document.getElementById("source").value.trim(),
+    publicationDate: document.getElementById("publicationDate").value || "",
     url: document.getElementById("url").value.trim(),
-    content: document.getElementById("content").value.trim(),
+    fullArticle: document.getElementById("content").value.trim(),
     summary: document.getElementById("summary").value.trim(),
     keywords: document.getElementById("keywords").value.split(",").map(k=>k.trim()).filter(Boolean),
-    savedAt: editingId ? getExistingSavedAt(editingId) : new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: now
   };
 
-  if(!article.title || !article.content){
-    alert("Title and readable article text are required.");
+  if(!article.title || !article.fullArticle){
+    alert("Title and full article text are required.");
     return;
   }
 
-  const tx = db.transaction("articles", "readwrite");
-  tx.objectStore("articles").put(article);
+  try{
+    setStatus("Saving article to Firebase Firestore...");
 
-  tx.oncomplete = () => {
+    if(editingId){
+      await setDoc(doc(db, ARTICLES_COLLECTION, editingId), article, { merge:true });
+    }else{
+      article.createdAt = now;
+      await addDoc(collection(db, ARTICLES_COLLECTION), article);
+    }
+
     editingId = null;
     clearForm();
-    renderArticles();
-    setStatus("Article saved.");
+    await loadArticlesFromFirestore();
+    setStatus("Article saved to Firestore.");
     setTimeout(clearStatus, 1800);
-  };
+
+  }catch(err){
+    console.error(err);
+    setStatus("Save failed. Check your Firebase config and Firestore rules.");
+  }
 }
 
-function getExistingSavedAt(id){
-  return new Date().toISOString();
+async function loadArticlesFromFirestore(){
+  try{
+    setStatus("Loading articles from Firestore...");
+
+    const q = query(collection(db, ARTICLES_COLLECTION), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+
+    articlesCache = snapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    clearStatus();
+    renderArticles();
+
+  }catch(err){
+    console.error(err);
+    setStatus("Could not load Firestore articles. Check Firebase config and Firestore rules.");
+  }
 }
 
 function clearForm(){
-  ["articleUrl","title","source","url","content","summary","keywords"].forEach(id=>{
+  ["articleUrl","title","source","publicationDate","url","content","summary","keywords"].forEach(id=>{
     document.getElementById(id).value="";
   });
   editingId = null;
   clearStatus();
 }
 
-function getAllArticles(callback){
-  const tx = db.transaction("articles", "readonly");
-  const req = tx.objectStore("articles").getAll();
-
-  req.onsuccess = () => {
-    callback(req.result.sort((a,b)=>(b.savedAt || "").localeCompare(a.savedAt || "")));
-  };
-}
-
 function renderArticles(){
-  if(!db) return;
-
   const q = document.getElementById("searchBox").value.toLowerCase();
 
-  getAllArticles(articles => {
-    renderQuickButtons(articles);
+  renderQuickButtons(articlesCache);
 
-    const filtered = articles.filter(a => {
-      const haystack = [
-        a.title,
-        a.source,
-        a.url,
-        a.content,
-        a.summary,
-        (a.keywords || []).join(" ")
-      ].join(" ").toLowerCase();
+  const filtered = articlesCache.filter(a => {
+    const haystack = [
+      a.title,
+      a.source,
+      a.publicationDate,
+      a.url,
+      a.fullArticle,
+      a.summary,
+      (a.keywords || []).join(" ")
+    ].join(" ").toLowerCase();
 
-      const matchesSearch = haystack.includes(q);
-      const matchesDate = !activeDateFilter || getSavedDate(a.savedAt) === activeDateFilter;
-      const matchesKeyword = !activeKeywordFilter || (a.keywords || []).map(k => k.toLowerCase()).includes(activeKeywordFilter.toLowerCase());
+    const matchesSearch = haystack.includes(q);
+    const matchesDate = !activeDateFilter || a.publicationDate === activeDateFilter;
+    const matchesKeyword = !activeKeywordFilter || (a.keywords || []).map(k => k.toLowerCase()).includes(activeKeywordFilter.toLowerCase());
 
-      return matchesSearch && matchesDate && matchesKeyword;
-    });
-
-    document.getElementById("articleList").innerHTML = filtered.length ? filtered.map(a => `
-      <div class="article">
-        <h3>${escapeHtml(a.title)}</h3>
-
-        <div class="small">
-          ${escapeHtml(a.source || "Unknown source")} | Saved: ${new Date(a.savedAt).toLocaleString()}
-        </div>
-
-        ${a.url ? `<p><a href="${escapeHtml(a.url)}" target="_blank">Open article</a></p>` : ""}
-
-        <h4>Summary</h4>
-        <div class="summaryBox">${escapeHtml(a.summary || "No summary yet.").replace(/\n/g,"<br>")}</div>
-
-        <h4>Keywords</h4>
-        <div>
-          ${(a.keywords || []).map(k => `
-            <button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>
-          `).join("")}
-        </div>
-
-        <details>
-          <summary>Readable article text</summary>
-          <div class="readable">${escapeHtml(a.content)}</div>
-        </details>
-
-        <div class="row">
-          <button onclick="editArticle('${a.id}')">Edit</button>
-          <button class="danger" onclick="deleteArticle('${a.id}')">Delete</button>
-        </div>
-      </div>
-    `).join("") : "<p>No articles found.</p>";
+    return matchesSearch && matchesDate && matchesKeyword;
   });
+
+  document.getElementById("articleList").innerHTML = filtered.length ? filtered.map(a => `
+    <div class="article">
+      <h3>${escapeHtml(a.title)}</h3>
+
+      <div class="small">
+        ${escapeHtml(a.source || "Unknown source")}
+        ${a.publicationDate ? ` | Published: ${escapeHtml(a.publicationDate)}` : ""}
+        ${a.createdAt ? ` | Added: ${new Date(a.createdAt).toLocaleString()}` : ""}
+      </div>
+
+      ${a.url ? `<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>` : ""}
+
+      <h4>Summary</h4>
+      <div class="summaryBox">${escapeHtml(a.summary || "No summary yet.").replace(/\n/g,"<br>")}</div>
+
+      <h4>Keywords</h4>
+      <div>
+        ${(a.keywords || []).map(k => `
+          <button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>
+        `).join("")}
+      </div>
+
+      <details open>
+        <summary>Full Article</summary>
+        <div class="readable">${escapeHtml(a.fullArticle || "")}</div>
+      </details>
+
+      <div class="row">
+        <button onclick="editArticle('${a.id}')">Edit</button>
+        <button class="danger" onclick="deleteArticle('${a.id}')">Delete</button>
+      </div>
+    </div>
+  `).join("") : "<p>No articles found.</p>";
 }
 
 function renderQuickButtons(articles){
-  const dates = [...new Set(articles.map(a => getSavedDate(a.savedAt)))].filter(Boolean);
+  const dates = [...new Set(articles.map(a => a.publicationDate).filter(Boolean))].sort().reverse();
 
   document.getElementById("dateButtons").innerHTML = dates.length ? dates.map(d => `
     <button class="quickBtn ${activeDateFilter === d ? "activeBtn" : ""}" onclick="filterByDate('${d}')">${d}</button>
-  `).join("") : `<span class="small">No saved dates yet.</span>`;
+  `).join("") : `<span class="small">No publication dates yet.</span>`;
 
   const keywords = [...new Set(
     articles.flatMap(a => a.keywords || []).map(k => k.trim()).filter(Boolean)
@@ -500,11 +488,6 @@ function renderQuickButtons(articles){
   document.getElementById("keywordButtons").innerHTML = keywords.length ? keywords.map(k => `
     <button class="quickBtn ${activeKeywordFilter === k ? "activeBtn" : ""}" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>
   `).join("") : `<span class="small">No keywords yet.</span>`;
-}
-
-function getSavedDate(savedAt){
-  if(!savedAt) return "";
-  return new Date(savedAt).toISOString().slice(0,10);
 }
 
 function filterByDate(date){
@@ -525,56 +508,93 @@ function clearFilters(){
 }
 
 function editArticle(id){
-  const tx = db.transaction("articles", "readonly");
-  const req = tx.objectStore("articles").get(id);
+  const a = articlesCache.find(x => x.id === id);
+  if(!a) return;
 
-  req.onsuccess = () => {
-    const a = req.result;
-    editingId = a.id;
-    document.getElementById("title").value = a.title || "";
-    document.getElementById("source").value = a.source || "";
-    document.getElementById("url").value = a.url || "";
-    document.getElementById("articleUrl").value = a.url || "";
-    document.getElementById("content").value = a.content || "";
-    document.getElementById("summary").value = a.summary || "";
-    document.getElementById("keywords").value = (a.keywords || []).join(", ");
-    window.scrollTo({top:0,behavior:"smooth"});
+  editingId = a.id;
+  document.getElementById("title").value = a.title || "";
+  document.getElementById("source").value = a.source || "";
+  document.getElementById("publicationDate").value = a.publicationDate || "";
+  document.getElementById("url").value = a.url || "";
+  document.getElementById("articleUrl").value = a.url || "";
+  document.getElementById("content").value = a.fullArticle || "";
+  document.getElementById("summary").value = a.summary || "";
+  document.getElementById("keywords").value = (a.keywords || []).join(", ");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function deleteArticle(id){
+  if(!confirm("Delete this article from Firestore?")) return;
+
+  try{
+    await deleteDoc(doc(db, ARTICLES_COLLECTION, id));
+    await loadArticlesFromFirestore();
+  }catch(err){
+    console.error(err);
+    alert("Delete failed. Check Firestore rules.");
+  }
+}
+
+function downloadDatabase(){
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    collection: ARTICLES_COLLECTION,
+    totalArticles: articlesCache.length,
+    articles: articlesCache
   };
+
+  const blob = new Blob([JSON.stringify(backup,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `news-articles-firestore-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
 }
 
-function deleteArticle(id){
-  if(!confirm("Delete this article?")) return;
-
-  const tx = db.transaction("articles", "readwrite");
-  tx.objectStore("articles").delete(id);
-  tx.oncomplete = renderArticles;
-}
-
-function exportData(){
-  getAllArticles(articles => {
-    const blob = new Blob([JSON.stringify(articles,null,2)], {type:"application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "news-articles-backup.json";
-    a.click();
-  });
-}
-
-function importData(event){
+async function importDatabase(event){
   const file = event.target.files[0];
   if(!file) return;
 
+  if(!confirm("Import this JSON into Firestore? Existing articles will not be deleted.")) return;
+
   const reader = new FileReader();
 
-  reader.onload = e => {
+  reader.onload = async e => {
     try{
-      const articles = JSON.parse(e.target.result);
-      const tx = db.transaction("articles", "readwrite");
-      const store = tx.objectStore("articles");
-      articles.forEach(a => store.put(a));
-      tx.oncomplete = renderArticles;
+      const data = JSON.parse(e.target.result);
+      const articles = Array.isArray(data) ? data : data.articles;
+
+      if(!Array.isArray(articles)){
+        alert("Invalid backup format.");
+        return;
+      }
+
+      setStatus("Importing articles to Firestore...");
+
+      for(const a of articles){
+        const article = {
+          title: a.title || "",
+          source: a.source || "",
+          publicationDate: a.publicationDate || "",
+          url: a.url || "",
+          fullArticle: a.fullArticle || a.content || "",
+          summary: a.summary || "",
+          keywords: Array.isArray(a.keywords) ? a.keywords : [],
+          createdAt: a.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        if(article.title && article.fullArticle){
+          await addDoc(collection(db, ARTICLES_COLLECTION), article);
+        }
+      }
+
+      await loadArticlesFromFirestore();
+      setStatus("Import completed.");
+      setTimeout(clearStatus, 1800);
+
     }catch(err){
-      alert("Import failed. Please choose a valid backup JSON file.");
+      console.error(err);
+      alert("Import failed. Please choose a valid JSON backup.");
     }
   };
 
