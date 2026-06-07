@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>News Article Compiler</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+:root{
+  --bg:#f4f6f8;
+  --card:#ffffff;
+  --dark:#111827;
+  --blue:#2563eb;
+  --gray:#4b5563;
+  --red:#dc2626;
+  --light:#e5e7eb;
+}
+body{
+  font-family:Arial,sans-serif;
+  margin:0;
+  background:var(--bg);
+  color:#222;
+}
+header{
+  background:var(--dark);
+  color:white;
+  padding:18px;
+}
+header h1{margin:0 0 6px}
+header p{margin:0;color:#d1d5db}
+main{
+  max-width:1150px;
+  margin:auto;
+  padding:16px;
+}
+.card{
+  background:var(--card);
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:16px;
+  box-shadow:0 2px 10px #0001;
+}
+input,textarea,button,select{
+  width:100%;
+  box-sizing:border-box;
+  margin:6px 0;
+  padding:10px;
+  border-radius:9px;
+  border:1px solid #ccc;
+  font-size:15px;
+}
+textarea{
+  min-height:180px;
+  line-height:1.5;
+}
+button{
+  background:var(--blue);
+  color:white;
+  border:none;
+  cursor:pointer;
+  font-weight:bold;
+}
+button:hover{opacity:.92}
+button.secondary{background:var(--gray)}
+button.danger{background:var(--red)}
+.row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+.article{
+  border:1px solid #ddd;
+  border-radius:12px;
+  padding:14px;
+  margin-bottom:14px;
+  background:#fff;
+}
+.article h3{
+  margin:0 0 6px;
+}
+.small{
+  font-size:13px;
+  color:#666;
+}
+.readable{
+  white-space:pre-wrap;
+  line-height:1.6;
+  background:#f9fafb;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  margin-top:8px;
+  max-height:420px;
+  overflow:auto;
+}
+.quickBtn,.keywordBtn{
+  display:inline-block;
+  width:auto;
+  margin:4px;
+  padding:7px 11px;
+  font-size:13px;
+  border-radius:999px;
+  background:#e5e7eb;
+  color:#111827;
+}
+.activeBtn{
+  background:#2563eb !important;
+  color:white !important;
+}
+.status{
+  font-size:14px;
+  color:#374151;
+  background:#f3f4f6;
+  border-radius:10px;
+  padding:10px;
+  margin-top:8px;
+}
+.summaryBox{
+  background:#f9fafb;
+  border-left:4px solid var(--blue);
+  padding:10px;
+  border-radius:8px;
+  white-space:pre-wrap;
+}
+.hidden{display:none}
+.topbar{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.topbar button{
+  width:auto;
+}
+.badge{
+  display:inline-block;
+  background:#eef2ff;
+  color:#3730a3;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:12px;
+  margin:2px;
+}
+@media(max-width:720px){
+  .row{grid-template-columns:1fr}
+  .topbar button{width:100%}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>News Article Compiler</h1>
+  <p>Compile article URLs or PDFs, generate readable sections, summaries and searchable keywords.</p>
+</header>
+
+<main>
+
+<div class="card">
+  <h2>Add Article</h2>
+
+  <input id="articleUrl" placeholder="Paste article URL here" />
+  <button onclick="fetchArticleFromUrl()">Fetch Article from URL</button>
+
+  <p class="small">Or upload a PDF article:</p>
+  <input id="pdfUpload" type="file" accept="application/pdf" onchange="loadPDF(event)" />
+
+  <div class="row">
+    <input id="title" placeholder="Article title" />
+    <input id="source" placeholder="Source e.g. CNA, BBC, Straits Times" />
+  </div>
+
+  <input id="url" placeholder="Article URL" />
+
+  <h3>Readable Article Section</h3>
+  <textarea id="content" placeholder="Readable article text will appear here. You may also paste article text directly."></textarea>
+
+  <button onclick="summarizeWithAI()">Generate Summary + Keywords</button>
+
+  <h3>Summary Section</h3>
+  <textarea id="summary" placeholder="AI summary will appear here"></textarea>
+
+  <input id="keywords" placeholder="Keywords, separated by commas" />
+
+  <div class="row">
+    <button onclick="saveArticle()">Save Article</button>
+    <button class="secondary" onclick="clearForm()">Clear Form</button>
+  </div>
+
+  <div id="status" class="status hidden"></div>
+</div>
+
+<div class="card">
+  <h2>Display Page</h2>
+
+  <input id="searchBox" placeholder="Search title, source, summary, article text or keywords" oninput="renderArticles()" />
+
+  <h3>Quick Search by Date</h3>
+  <div id="dateButtons"></div>
+
+  <h3>Quick Search by Keywords</h3>
+  <div id="keywordButtons"></div>
+
+  <div class="topbar">
+    <button class="secondary" onclick="clearFilters()">Show All Articles</button>
+    <button class="secondary" onclick="exportData()">Export Backup</button>
+    <button class="secondary" onclick="document.getElementById('importFile').click()">Import Backup</button>
+  </div>
+
+  <input id="importFile" class="hidden" type="file" accept=".json" onchange="importData(event)" />
+</div>
+
+<div class="card">
+  <h2>Saved Articles</h2>
+  <div id="articleList"></div>
+</div>
+
+</main>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+let db;
+let editingId = null;
+let activeDateFilter = "";
+let activeKeywordFilter = "";
+
+const request = indexedDB.open("NewsCompilerDB", 1);
+
+request.onupgradeneeded = e => {
+  db = e.target.result;
+  if(!db.objectStoreNames.contains("articles")){
+    db.createObjectStore("articles", { keyPath: "id" });
+  }
+};
+
+request.onsuccess = e => {
+  db = e.target.result;
+  renderArticles();
+};
+
+function setStatus(msg){
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function clearStatus(){
+  const el = document.getElementById("status");
+  el.textContent = "";
+  el.classList.add("hidden");
+}
+
+async function fetchArticleFromUrl(){
+  const rawUrl = document.getElementById("articleUrl").value.trim();
+  if(!rawUrl){
+    alert("Paste an article URL first.");
+    return;
+  }
+
+  try{
+    setStatus("Fetching readable article text...");
+
+    const jinaUrl = "https://r.jina.ai/http://r.jina.ai/http://";
+    const readableUrl = rawUrl.startsWith("https://")
+      ? "https://r.jina.ai/http://" + rawUrl.replace("https://","")
+      : rawUrl.startsWith("http://")
+        ? "https://r.jina.ai/http://" + rawUrl.replace("http://","")
+        : "https://r.jina.ai/http://" + rawUrl;
+
+    const res = await fetch(readableUrl);
+    const text = await res.text();
+
+    const guessedTitle = text.match(/^Title:\s*(.+)$/m);
+    const host = new URL(rawUrl).hostname.replace("www.","");
+
+    document.getElementById("url").value = rawUrl;
+    document.getElementById("content").value = cleanArticleText(text);
+    document.getElementById("title").value = guessedTitle ? guessedTitle[1].trim() : "";
+    document.getElementById("source").value = host;
+
+    clearStatus();
+    await summarizeWithAI();
+
+  }catch(err){
+    console.error(err);
+    setStatus("Could not fetch article. Some websites block extraction. Try uploading a PDF or pasting the text.");
+  }
+}
+
+function cleanArticleText(text){
+  return text
+    .replace(/^Title:.*$/m,"")
+    .replace(/^URL Source:.*$/m,"")
+    .replace(/^Markdown Content:.*$/m,"")
+    .replace(/\[(.*?)\]\((.*?)\)/g,"$1")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+}
+
+async function loadPDF(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  try{
+    setStatus("Reading PDF...");
+
+    const buffer = await file.arrayBuffer();
+    const typedArray = new Uint8Array(buffer);
+    const pdf = await pdfjsLib.getDocument(typedArray).promise;
+
+    let fullText = "";
+
+    for(let i=1;i<=pdf.numPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map(item => item.str);
+      fullText += strings.join(" ") + "\n\n";
+    }
+
+    document.getElementById("content").value = fullText.trim();
+    document.getElementById("title").value = file.name.replace(/\.pdf$/i,"");
+    document.getElementById("source").value = "PDF Upload";
+    document.getElementById("url").value = "";
+
+    clearStatus();
+    await summarizeWithAI();
+
+  }catch(err){
+    console.error(err);
+    setStatus("PDF reading failed. Try another PDF or paste the text manually.");
+  }
+}
+
+async function summarizeWithAI(){
+  const content = document.getElementById("content").value.trim();
+  const url = document.getElementById("url").value.trim();
+
+  if(!content){
+    alert("No article text found.");
+    return;
+  }
+
+  try{
+    setStatus("Generating title, source, summary and keywords with AI...");
+
+    const res = await fetch("/api/summarize", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        url,
+        title:document.getElementById("title").value.trim(),
+        source:document.getElementById("source").value.trim(),
+        content
+      })
+    });
+
+    const parsed = await res.json();
+
+    if(!res.ok){
+      throw new Error(parsed.error || "AI request failed.");
+    }
+
+    if(parsed.title) document.getElementById("title").value = parsed.title;
+    if(parsed.source) document.getElementById("source").value = parsed.source;
+    document.getElementById("summary").value = parsed.summary || "";
+    document.getElementById("keywords").value = (parsed.keywords || []).join(", ");
+
+    clearStatus();
+
+  }catch(err){
+    console.error(err);
+    setStatus("AI failed. Check that OPENROUTER_API_KEY is set in Vercel environment variables.");
+  }
+}
+
+function saveArticle(){
+  const article = {
+    id: editingId || Date.now().toString(),
+    title: document.getElementById("title").value.trim(),
+    source: document.getElementById("source").value.trim(),
+    url: document.getElementById("url").value.trim(),
+    content: document.getElementById("content").value.trim(),
+    summary: document.getElementById("summary").value.trim(),
+    keywords: document.getElementById("keywords").value.split(",").map(k=>k.trim()).filter(Boolean),
+    savedAt: editingId ? getExistingSavedAt(editingId) : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if(!article.title || !article.content){
+    alert("Title and readable article text are required.");
+    return;
+  }
+
+  const tx = db.transaction("articles", "readwrite");
+  tx.objectStore("articles").put(article);
+
+  tx.oncomplete = () => {
+    editingId = null;
+    clearForm();
+    renderArticles();
+    setStatus("Article saved.");
+    setTimeout(clearStatus, 1800);
+  };
+}
+
+function getExistingSavedAt(id){
+  return new Date().toISOString();
+}
+
+function clearForm(){
+  ["articleUrl","title","source","url","content","summary","keywords"].forEach(id=>{
+    document.getElementById(id).value="";
+  });
+  editingId = null;
+  clearStatus();
+}
+
+function getAllArticles(callback){
+  const tx = db.transaction("articles", "readonly");
+  const req = tx.objectStore("articles").getAll();
+
+  req.onsuccess = () => {
+    callback(req.result.sort((a,b)=>(b.savedAt || "").localeCompare(a.savedAt || "")));
+  };
+}
+
+function renderArticles(){
+  if(!db) return;
+
+  const q = document.getElementById("searchBox").value.toLowerCase();
+
+  getAllArticles(articles => {
+    renderQuickButtons(articles);
+
+    const filtered = articles.filter(a => {
+      const haystack = [
+        a.title,
+        a.source,
+        a.url,
+        a.content,
+        a.summary,
+        (a.keywords || []).join(" ")
+      ].join(" ").toLowerCase();
+
+      const matchesSearch = haystack.includes(q);
+      const matchesDate = !activeDateFilter || getSavedDate(a.savedAt) === activeDateFilter;
+      const matchesKeyword = !activeKeywordFilter || (a.keywords || []).map(k => k.toLowerCase()).includes(activeKeywordFilter.toLowerCase());
+
+      return matchesSearch && matchesDate && matchesKeyword;
+    });
+
+    document.getElementById("articleList").innerHTML = filtered.length ? filtered.map(a => `
+      <div class="article">
+        <h3>${escapeHtml(a.title)}</h3>
+
+        <div class="small">
+          ${escapeHtml(a.source || "Unknown source")} | Saved: ${new Date(a.savedAt).toLocaleString()}
+        </div>
+
+        ${a.url ? `<p><a href="${escapeHtml(a.url)}" target="_blank">Open article</a></p>` : ""}
+
+        <h4>Summary</h4>
+        <div class="summaryBox">${escapeHtml(a.summary || "No summary yet.").replace(/\n/g,"<br>")}</div>
+
+        <h4>Keywords</h4>
+        <div>
+          ${(a.keywords || []).map(k => `
+            <button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>
+          `).join("")}
+        </div>
+
+        <details>
+          <summary>Readable article text</summary>
+          <div class="readable">${escapeHtml(a.content)}</div>
+        </details>
+
+        <div class="row">
+          <button onclick="editArticle('${a.id}')">Edit</button>
+          <button class="danger" onclick="deleteArticle('${a.id}')">Delete</button>
+        </div>
+      </div>
+    `).join("") : "<p>No articles found.</p>";
+  });
+}
+
+function renderQuickButtons(articles){
+  const dates = [...new Set(articles.map(a => getSavedDate(a.savedAt)))].filter(Boolean);
+
+  document.getElementById("dateButtons").innerHTML = dates.length ? dates.map(d => `
+    <button class="quickBtn ${activeDateFilter === d ? "activeBtn" : ""}" onclick="filterByDate('${d}')">${d}</button>
+  `).join("") : `<span class="small">No saved dates yet.</span>`;
+
+  const keywords = [...new Set(
+    articles.flatMap(a => a.keywords || []).map(k => k.trim()).filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b));
+
+  document.getElementById("keywordButtons").innerHTML = keywords.length ? keywords.map(k => `
+    <button class="quickBtn ${activeKeywordFilter === k ? "activeBtn" : ""}" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>
+  `).join("") : `<span class="small">No keywords yet.</span>`;
+}
+
+function getSavedDate(savedAt){
+  if(!savedAt) return "";
+  return new Date(savedAt).toISOString().slice(0,10);
+}
+
+function filterByDate(date){
+  activeDateFilter = date;
+  renderArticles();
+}
+
+function filterByKeyword(keyword){
+  activeKeywordFilter = keyword;
+  renderArticles();
+}
+
+function clearFilters(){
+  activeDateFilter = "";
+  activeKeywordFilter = "";
+  document.getElementById("searchBox").value = "";
+  renderArticles();
+}
+
+function editArticle(id){
+  const tx = db.transaction("articles", "readonly");
+  const req = tx.objectStore("articles").get(id);
+
+  req.onsuccess = () => {
+    const a = req.result;
+    editingId = a.id;
+    document.getElementById("title").value = a.title || "";
+    document.getElementById("source").value = a.source || "";
+    document.getElementById("url").value = a.url || "";
+    document.getElementById("articleUrl").value = a.url || "";
+    document.getElementById("content").value = a.content || "";
+    document.getElementById("summary").value = a.summary || "";
+    document.getElementById("keywords").value = (a.keywords || []).join(", ");
+    window.scrollTo({top:0,behavior:"smooth"});
+  };
+}
+
+function deleteArticle(id){
+  if(!confirm("Delete this article?")) return;
+
+  const tx = db.transaction("articles", "readwrite");
+  tx.objectStore("articles").delete(id);
+  tx.oncomplete = renderArticles;
+}
+
+function exportData(){
+  getAllArticles(articles => {
+    const blob = new Blob([JSON.stringify(articles,null,2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "news-articles-backup.json";
+    a.click();
+  });
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    try{
+      const articles = JSON.parse(e.target.result);
+      const tx = db.transaction("articles", "readwrite");
+      const store = tx.objectStore("articles");
+      articles.forEach(a => store.put(a));
+      tx.oncomplete = renderArticles;
+    }catch(err){
+      alert("Import failed. Please choose a valid backup JSON file.");
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+function escapeHtml(str){
+  return String(str || "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#039;"
+  }[m]));
+}
+
+function escapeAttribute(str){
+  return String(str || "").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/"/g,"&quot;");
+}
+</script>
+
+</body>
+</html>
