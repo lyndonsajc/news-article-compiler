@@ -179,14 +179,13 @@ Replace this with your Firebase web app config.
 Firebase Console → Project Settings → General → Your apps → Web app → Firebase SDK config.
 */
 const firebaseConfig = {
-  apiKey: "PASTE_FIREBASE_API_KEY",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_MESSAGING_SENDER_ID",
-  appId: "PASTE_APP_ID"
+  apiKey: "AIzaSyAotyw1bpKRESwzR2b0j19Qn1b81FrI6Bk",
+  authDomain: "news-article-compiler.firebaseapp.com",
+  projectId: "news-article-compiler",
+  storageBucket: "news-article-compiler.firebasestorage.app",
+  messagingSenderId: "1042649880387",
+  appId: "1:1042649880387:web:d5ef710d64f19acdd601f6"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const ARTICLES_COLLECTION = "newsArticles";
