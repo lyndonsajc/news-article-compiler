@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { url = "", title = "", source = "", content = "" } = req.body || {};
+  const { url = "", title = "", source = "", publicationDate = "", content = "" } = req.body || {};
 
   if (!content.trim()) {
     return res.status(400).json({ error: "No article content provided." });
@@ -26,6 +26,7 @@ Use this structure:
 {
   "title": "article title",
   "source": "news source",
+  "publicationDate": "YYYY-MM-DD if available, otherwise empty string",
   "summary": "5-8 clear bullet points. Each bullet should be concise and useful for students.",
   "keywords": ["keyword1","keyword2","keyword3","keyword4","keyword5","keyword6","keyword7","keyword8"]
 }
@@ -33,11 +34,13 @@ Use this structure:
 Rules:
 - If title is already provided, improve it only if needed.
 - If source is already provided, use it unless clearly wrong.
+- If publication date is already provided, use it unless clearly wrong.
 - Keywords should support quick search.
-- Include topic keywords such as inflation, unemployment, growth, trade, market failure, government policy, conflict, climate, technology, healthcare, education, inequality, if relevant.
+- Include economics topic keywords such as inflation, unemployment, economic growth, trade, market failure, government policy, competition, market structure, exchange rate, fiscal policy, monetary policy, inequality, if relevant.
 
 Provided title: ${title}
 Provided source: ${source}
+Provided publication date: ${publicationDate}
 Article URL: ${url}
 
 Article text:
@@ -84,6 +87,7 @@ ${content.slice(0, 14000)}
     return res.status(200).json({
       title: parsed.title || title,
       source: parsed.source || source,
+      publicationDate: parsed.publicationDate || publicationDate || "",
       summary: parsed.summary || "",
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : []
     });
