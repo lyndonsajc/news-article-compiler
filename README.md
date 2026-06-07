@@ -1,27 +1,13 @@
-# News Article Compiler - Firebase + Passcode Version
+# News Article Compiler - Compact + Bulk Version
 
 Changes:
-- Passcode lock: 7728
-- Saves full article to Firestore
-- Save/display date uses article publication date, not today's date
-- Firestore save has timeout/error messages instead of hanging silently
-- Download Database JSON button remains
+- Compact saved article display
+- Click article row to expand summary/full article
+- Bulk Save Multiple Articles: paste one URL per line
+- Uses Firebase Firestore
+- Uses publication date as display date
+- Passcode: 7728
+- Download database JSON backup remains
 
-Important:
-Replace the Firebase config in `index.html` with your own Firebase config.
-
-Firestore rules for testing:
-
-```txt
-rules_version = '2';
-
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /newsArticles/{document=**} {
-      allow read, write: if true;
-    }
-  }
-}
-```
-
-Later, secure this properly with Firebase Authentication.
+Vercel environment variable needed:
+OPENROUTER_API_KEY
