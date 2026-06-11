@@ -17,17 +17,12 @@ Use this exact structure:
   "title": "article title",
   "source": "news source",
   "publicationDate": "YYYY-MM-DD if available, otherwise empty string",
-  "fullArticleCleaned": "cleaned article text containing only actual news content, with advertisements and non-news content removed",
   "summary": "5-8 clear bullet points. Each bullet should be concise and useful for students.",
   "keywords": ["general news keyword1","general news keyword2","general news keyword3","general news keyword4","general news keyword5","general news keyword6","general news keyword7","general news keyword8"],
-  "economicKeywords": ["economic term1","economic term2","economic term3","economic term4","economic term5","economic term6","economic term7","economic term8"],
-  "economicsConcepts": ["concept1","concept2","concept3","concept4","concept5"]
+  "economicKeywords": ["economic term1","economic term2","economic term3","economic term4","economic term5","economic term6","economic term7","economic term8"]
 }
 
 Important:
-- First clean the article. Remove advertisements, sponsored content, related articles, recommended stories, read more sections, subscription notices, newsletter prompts, social media links, navigation menus, copyright notices, video player descriptions, share buttons, promotional content, repeated content, footer content and header content.
-- Retain only the headline, publication date, source, main news article body, relevant quotes, relevant statistics, relevant policy information and relevant economic information.
-- fullArticleCleaned must contain only the cleaned actual news article.
 - publicationDate must be the article's actual publication date, not today's date.
 - If no publication date is available, return an empty string.
 - keywords should be general search keywords.
@@ -76,9 +71,7 @@ ${content.slice(0, 14000)}
       publicationDate: parsed.publicationDate || publicationDate || "",
       summary: parsed.summary || "",
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-      economicKeywords: Array.isArray(parsed.economicKeywords) ? parsed.economicKeywords : [],
-      economicsConcepts: Array.isArray(parsed.economicsConcepts) ? parsed.economicsConcepts : [],
-      fullArticleCleaned: parsed.fullArticleCleaned || ""
+      economicKeywords: Array.isArray(parsed.economicKeywords) ? parsed.economicKeywords : []
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Server error." });
