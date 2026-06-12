@@ -1,9 +1,6 @@
 {
-  "name": "news-article-compiler-v4",
-  "version": "4.0.0",
+  "name": "news-article-compiler-v4-4-openrouter-fixed",
+  "version": "4.4.1",
   "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vercel dev"
-  }
+  "type": "module"
 }

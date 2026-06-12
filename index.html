@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Article Compiler V4.4</title>
+<title>News Article Compiler V4.4 OpenRouter Fixed</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
@@ -39,9 +39,9 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 </style>
 </head>
 <body>
-<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.4</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
+<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.4 OpenRouter Fixed</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
 <div id="appShell" class="hidden">
-<header><h1>News Article Compiler V4.4</h1><p>Firestore article bank with raw article preservation and limited AI cleaning: only ads, prompts, navigation and repeated non-news content are removed.</p></header>
+<header><h1>News Article Compiler V4.4 OpenRouter Fixed</h1><p>Firestore article bank with raw article preservation and limited AI cleaning: only ads, prompts, navigation and repeated non-news content are removed.</p></header>
 <main>
 <div class="card"><h2>Dashboard</h2><div class="stats"><div class="statBox"><div class="statNum" id="statTotal">0</div><div>Total articles</div></div><div class="statBox"><div class="statNum" id="statSources">0</div><div>Sources</div></div><div class="statBox"><div class="statNum" id="statGeneralKeywords">0</div><div>General keywords</div></div><div class="statBox"><div class="statNum" id="statEconomicKeywords">0</div><div>Economic terms</div></div><div class="statBox"><div class="statNum" id="statConcepts">0</div><div>Economics concepts</div></div></div></div>
 
@@ -50,7 +50,11 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 <p>Or upload a PDF article:</p><input id="pdfUpload" type="file" accept="application/pdf" onchange="loadPDF(event)">
 <div class="row"><input id="title" placeholder="Article title"><input id="source" placeholder="Source e.g. CNA, BBC, Straits Times"></div>
 <div class="row"><input id="publicationDate" type="date"><input id="url" placeholder="Article URL"></div>
-<h3>Readable Full Article Section</h3><textarea id="content" placeholder="Full readable article text will appear here."></textarea>
+<h3>Raw Full Article Section</h3>
+<textarea id="content" placeholder="Raw full article text will appear here. This is preserved and not overwritten by AI."></textarea>
+
+<h3>AI-Cleaned Article Section</h3>
+<textarea id="cleanedContent" placeholder="AI-cleaned article text will appear here. Only advertisements, sponsored content, related articles, read more sections, subscription prompts, newsletter prompts, social media links, navigation menus, footer text, copyright text, repeated content, image galleries, video descriptions and share buttons should be removed."></textarea>
 <button onclick="summarizeWithAI()">Generate Summary + Keywords</button>
 <h3>Summary Section</h3><textarea id="summary" placeholder="AI summary will appear here"></textarea>
 <div class="row"><input id="keywords" placeholder="General keywords, separated by commas"><input id="economicKeywords" placeholder="Economic terms, separated by commas"></div><input id="economicsConcepts" placeholder="Economics concepts, separated by commas">
@@ -163,7 +167,17 @@ async function summarizeCore(article){
 async function summarizeWithAI(){
  const content=document.getElementById("content").value.trim(); if(!content){alert("No article text found.");return}
  try{setStatus("Generating summary and keywords..."); const article=await summarizeCore({url:document.getElementById("url").value.trim(),title:document.getElementById("title").value.trim(),source:document.getElementById("source").value.trim(),publicationDate:document.getElementById("publicationDate").value,fullArticle:content});
- document.getElementById("title").value=article.title;document.getElementById("source").value=article.source;if(article.publicationDate)document.getElementById("publicationDate").value=article.publicationDate;document.getElementById("summary").value=article.summary;document.getElementById("keywords").value=article.keywords.join(", ");document.getElementById("economicKeywords").value=article.economicKeywords.join(", ");document.getElementById("economicsConcepts").value=(article.economicsConcepts||[]).join(", ");document.getElementById("cleanedContent").value=article.fullArticleCleaned||document.getElementById("content").value;clearStatus();}
+ document.getElementById("title").value=article.title;
+ document.getElementById("source").value=article.source;
+ if(article.publicationDate)document.getElementById("publicationDate").value=article.publicationDate;
+ document.getElementById("summary").value=article.summary;
+ document.getElementById("keywords").value=article.keywords.join(", ");
+ document.getElementById("economicKeywords").value=article.economicKeywords.join(", ");
+ const conceptsBox=document.getElementById("economicsConcepts");
+ if(conceptsBox) conceptsBox.value=(article.economicsConcepts||[]).join(", ");
+ const cleanedBox=document.getElementById("cleanedContent");
+ if(cleanedBox) cleanedBox.value=article.fullArticleCleaned||document.getElementById("content").value;
+ clearStatus();}
  catch(err){console.error(err);setStatus("AI failed. "+err.message,true)}
 }
 
@@ -172,7 +186,7 @@ async function saveArticle(){
  const publicationDate=document.getElementById("publicationDate").value, url=document.getElementById("url").value.trim();
  if(!publicationDate){alert("Please enter the article publication date before saving.");return}
  const duplicate=duplicateByUrl(url,editingId||""); if(duplicate){alert("Duplicate detected. This URL is already saved: "+duplicate.title);return}
- const article={title:document.getElementById("title").value.trim(),source:document.getElementById("source").value.trim(),publicationDate,displayDate:publicationDate,url,fullArticleRaw:document.getElementById("content").value.trim(),fullArticleCleaned:(document.getElementById("cleanedContent").value.trim()||document.getElementById("content").value.trim()),fullArticle:(document.getElementById("cleanedContent").value.trim()||document.getElementById("content").value.trim()),summary:document.getElementById("summary").value.trim(),keywords:splitTags("keywords"),economicKeywords:splitTags("economicKeywords"),economicsConcepts:splitTags("economicsConcepts"),updatedAt:new Date().toISOString()};
+ const article={title:document.getElementById("title").value.trim(),source:document.getElementById("source").value.trim(),publicationDate,displayDate:publicationDate,url,fullArticleRaw:document.getElementById("content").value.trim(),fullArticleCleaned:((document.getElementById("cleanedContent")?.value||"").trim()||document.getElementById("content").value.trim()),fullArticle:((document.getElementById("cleanedContent")?.value||"").trim()||document.getElementById("content").value.trim()),summary:document.getElementById("summary").value.trim(),keywords:splitTags("keywords"),economicKeywords:splitTags("economicKeywords"),economicsConcepts:splitTags("economicsConcepts"),updatedAt:new Date().toISOString()};
  if(!article.title||!article.fullArticle){alert("Title and full article text are required.");return}
  try{setStatus("Saving article to Firestore..."); if(editingId){await withTimeout(setDoc(doc(db,ARTICLES_COLLECTION,editingId),article,{merge:true}),15000,"Firestore save timed out.")}else{article.createdAt=new Date().toISOString();await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),article),15000,"Firestore save timed out.")} editingId=null;clearForm();await loadArticlesFromFirestore();setStatus("Article saved to Firestore.");setTimeout(clearStatus,1800)}
  catch(err){console.error(err);setStatus("Save failed: "+err.message,true)}
@@ -204,7 +218,7 @@ async function loadArticlesFromFirestore(){
  }catch(err){console.error(err);setStatus("Could not load Firestore articles: "+err.message,true)}
 }
 
-function clearForm(){["articleUrl","title","source","publicationDate","url","content","cleanedContent","summary","keywords","economicKeywords","economicsConcepts"].forEach(id=>document.getElementById(id).value="");editingId=null;clearStatus()}
+function clearForm(){["articleUrl","title","source","publicationDate","url","content","cleanedContent","summary","keywords","economicKeywords","economicsConcepts"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=""});editingId=null;clearStatus()}
 function getFilteredArticles(){
  const q=document.getElementById("searchBox").value.toLowerCase(), dateFrom=document.getElementById("dateFrom").value, dateTo=document.getElementById("dateTo").value, sourceFilter=document.getElementById("sourceFilter").value;
  return articlesCache.filter(a=>{const haystack=[a.title,a.source,a.publicationDate,a.url,a.fullArticle,a.summary,(a.keywords||[]).join(" "),(a.economicKeywords||[]).join(" "),(a.economicsConcepts||[]).join(" ")].join(" ").toLowerCase(); const d=a.publicationDate||"";
