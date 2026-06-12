@@ -17,7 +17,6 @@ Use this exact structure:
   "title": "article title",
   "source": "news source",
   "publicationDate": "YYYY-MM-DD if available, otherwise empty string",
-  "fullArticleCleaned": "cleaned article text containing only actual news content, with advertisements and non-news content removed",
   "summary": "5-8 clear bullet points. Each bullet should be concise and useful for students.",
   "keywords": ["general news keyword1","general news keyword2","general news keyword3","general news keyword4","general news keyword5","general news keyword6","general news keyword7","general news keyword8"],
   "economicKeywords": ["economic term1","economic term2","economic term3","economic term4","economic term5","economic term6","economic term7","economic term8"],
@@ -25,28 +24,9 @@ Use this exact structure:
 }
 
 Important:
-- First clean the article, but ONLY remove the following non-news items:
-  1. Advertisements
-  2. Sponsored content
-  3. Related articles
-  4. Read more sections
-  5. Subscription prompts
-  6. Newsletter prompts
-  7. Social media links
-  8. Navigation menus
-  9. Footer text
-  10. Copyright text
-  11. Repeated content
-  12. Image galleries
-  13. Video descriptions
-  14. Share buttons
-- Keep all other content unchanged.
-- Do not paraphrase the cleaned article.
-- Do not shorten the cleaned article into a summary.
-- Do not remove article paragraphs simply because they are not economic.
-- Do not remove background information, quotes, statistics, examples, names, dates, locations, explanations, context, or policy details.
-- If unsure whether a paragraph is part of the article, keep it.
-- fullArticleCleaned must be the original article content minus only the listed non-news items.
+- Do NOT clean, rewrite, shorten, paraphrase, remove, or edit the article text.
+- The full article text is saved separately by the app and must remain untouched.
+- Your task is ONLY to identify metadata, summary, general keywords, economic keywords and economics concepts.
 - publicationDate must be the article's actual publication date, not today's date.
 - If no publication date is available, return an empty string.
 - keywords should be general search keywords.
@@ -59,7 +39,7 @@ Provided source: ${source}
 Provided publication date: ${publicationDate}
 Article URL: ${url}
 
-Article text:
+Article text for analysis only:
 ${content.slice(0, 14000)}
 `;
 
@@ -96,8 +76,7 @@ ${content.slice(0, 14000)}
       summary: parsed.summary || "",
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
       economicKeywords: Array.isArray(parsed.economicKeywords) ? parsed.economicKeywords : [],
-      economicsConcepts: Array.isArray(parsed.economicsConcepts) ? parsed.economicsConcepts : [],
-      fullArticleCleaned: parsed.fullArticleCleaned || ""
+      economicsConcepts: Array.isArray(parsed.economicsConcepts) ? parsed.economicsConcepts : []
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Server error." });
