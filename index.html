@@ -3,52 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Article Compiler V4.7</title>
+<title>News Article Compiler V4.6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 <style>
-:root{--bg:#071325;--panel:#0d1b33;--panel2:#0a162b;--line:#173154;--text:#f8fafc;--muted:#9fb4d0;--accent:#2dd4bf;--blue:#2563eb;--red:#ef4444;--chip:#102848}
-*{box-sizing:border-box}
-body{font-family:Inter,Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}
-header{position:sticky;top:0;z-index:10;background:#071325;border-bottom:1px solid var(--line);padding:10px 24px}
-header h1{margin:0;font-size:18px} header p{margin:3px 0 0;color:var(--muted);font-size:12px}
-main{max-width:1260px;margin:auto;padding:14px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px;box-shadow:0 8px 24px #0003}
-.card h2{margin:0 0 10px;font-size:17px}.card h3{margin:13px 0 7px;font-size:14px;color:#dbeafe}
-input,textarea,button,select{width:100%;box-sizing:border-box;margin:5px 0;padding:10px;border-radius:12px;border:1px solid #27456b;background:#081225;color:var(--text);font-size:14px}
-textarea{min-height:110px;line-height:1.45;resize:vertical}
-button{background:#1d4ed8;border:1px solid #2f66e8;color:white;cursor:pointer;font-weight:700}
-button.secondary{background:#102848;border-color:#27456b;color:#dbeafe}.danger,button.danger{background:#3b1018;border-color:#b91c1c;color:#fecaca}.green,button.green{background:#065f46;border-color:#10b981}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.status{font-size:13px;color:#b8c7dd;background:#0a162b;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px}.error{background:#3b1018;border-color:#991b1b;color:#fecaca}
-.hidden{display:none!important}.warning{background:#111f33;border:1px solid #27456b;color:#cbd5e1;padding:10px;border-radius:12px;font-size:13px}
-.lockScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#071325;padding:20px}.lockBox{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;max-width:390px;width:100%;box-shadow:0 12px 35px #0008}
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.statBox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px}.statNum{font-size:24px;font-weight:800;color:var(--accent)}.statBox div:last-child{color:var(--muted);font-size:12px}
-.searchHub{display:grid;grid-template-columns:1.5fr .8fr .8fr .9fr;gap:10px;align-items:end}
-.presetBar,.topbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.presetBar button,.topbar button{width:auto;padding:8px 12px}
-.quickBtn,.keywordBtn{display:inline-block;width:auto;margin:3px;padding:7px 10px;font-size:12px;border-radius:999px;background:var(--chip);border:1px solid #27456b;color:#dbeafe;white-space:nowrap}
-.activeBtn{background:linear-gradient(90deg,#2dd4bf,#22c55e)!important;color:#062013!important;border-color:transparent!important}
-.scrollKeywords{max-height:120px;overflow-y:auto;border:1px solid var(--line);border-radius:12px;padding:8px;background:#081225}
-.articleGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.compactArticle{background:#0b1a31;border:1px solid var(--line);border-radius:16px;overflow:hidden}
-.compactHeader{display:grid;grid-template-columns:34px 1fr auto;gap:10px;padding:12px;align-items:center;cursor:pointer}
-.iconBubble{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#102848;border:1px solid #27456b;color:var(--accent);font-weight:900}
-.compactTitle{font-weight:800;font-size:14px;line-height:1.2}.compactMeta{color:var(--muted);font-size:12px;margin-top:3px}
-.compactKeywords{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;max-height:28px;overflow:hidden}.miniTag{display:inline-block;font-size:11px;color:#bae6fd;background:#0b3555;border:1px solid #155e75;border-radius:999px;padding:2px 6px}
-.compactActions{display:flex;flex-direction:column;gap:5px}.compactActions button{width:auto;margin:0;padding:6px 9px;font-size:12px}
-.articleDetails{padding:12px;border-top:1px solid var(--line);background:#081225}.articleDetails details{border:1px solid var(--line);border-radius:12px;margin:8px 0;padding:8px;background:#0b1a31}.articleDetails summary{cursor:pointer;color:#dbeafe;font-weight:700}
-.summaryBox{background:#0b1a31;border-left:4px solid #38bdf8;padding:10px;border-radius:10px;white-space:pre-wrap;color:#e2e8f0}
-.readable{white-space:pre-wrap;line-height:1.55;background:#071325;padding:12px;border-radius:10px;border:1px solid var(--line);margin-top:8px;max-height:420px;overflow:auto;color:#e2e8f0}
-.bulkItem{font-size:13px;padding:6px 8px;border-bottom:1px solid var(--line)}.bulkOk{color:#86efac}.bulkFail{color:#fca5a5}.bulkWorking{color:#93c5fd}
-.aiTools{border:1px solid var(--line);border-radius:14px;padding:10px;background:#081225;margin:10px 0}.aiTools summary{cursor:pointer;color:var(--accent);font-weight:800}
-@media(max-width:980px){.stats{grid-template-columns:1fr 1fr}.row,.row3,.searchHub{grid-template-columns:1fr}.articleGrid{grid-template-columns:1fr}}
+body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#111827;color:white;padding:18px}
+main{max-width:1250px;margin:auto;padding:16px}
+.card{background:white;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px #0001}
+input,textarea,button,select{width:100%;box-sizing:border-box;margin:6px 0;padding:10px;border-radius:9px;border:1px solid #ccc;font-size:15px}
+textarea{min-height:145px;line-height:1.5}
+button{background:#2563eb;color:white;border:none;cursor:pointer;font-weight:bold}
+button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background:#16a34a}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.status{font-size:14px;color:#374151;background:#f3f4f6;border-radius:10px;padding:10px;margin-top:8px}.error{background:#fee2e2;color:#991b1b}
+.hidden{display:none!important}.topbar{display:flex;gap:8px;flex-wrap:wrap}.topbar button{width:auto}
+.quickBtn,.keywordBtn{display:inline-block;width:auto;margin:4px;padding:7px 11px;font-size:13px;border-radius:999px;background:#e5e7eb;color:#111827}
+.scrollKeywords{max-height:180px;overflow-y:auto;border:1px solid #ddd;border-radius:10px;padding:8px;background:#fafafa}
+.presetBar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.presetBar button{width:auto}
+.activeBtn{background:#2563eb!important;color:white!important}
+.warning{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:10px;border-radius:10px;font-size:14px}
+.summaryBox{background:#f9fafb;border-left:4px solid #2563eb;padding:10px;border-radius:8px;white-space:pre-wrap}
+.readable{white-space:pre-wrap;line-height:1.6;background:#f9fafb;padding:12px;border-radius:10px;border:1px solid #ddd;margin-top:8px;max-height:420px;overflow:auto}
+.lockScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#111827;padding:20px}
+.lockBox{background:white;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 10px 30px #0005}
+.compactArticle{border:1px solid #ddd;border-radius:10px;background:white;margin-bottom:8px;overflow:hidden}
+.compactHeader{display:grid;grid-template-columns:1.3fr .7fr .6fr 1fr 1fr auto;gap:8px;align-items:center;padding:10px 12px;cursor:pointer}
+.compactTitle{font-weight:bold}.compactMeta{font-size:13px;color:#666}.compactKeywords{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.compactActions{display:flex;gap:6px}.compactActions button{width:auto;margin:0;padding:6px 10px;font-size:13px}
+.articleDetails{padding:0 12px 12px 12px;border-top:1px solid #eee}
+.bulkItem{font-size:13px;padding:6px 8px;border-bottom:1px solid #eee}.bulkOk{color:#166534}.bulkFail{color:#991b1b}.bulkWorking{color:#1d4ed8}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.statBox{background:#f9fafb;border:1px solid #ddd;border-radius:10px;padding:10px}.statNum{font-size:24px;font-weight:bold}
+@media(max-width:950px){.row,.row3{grid-template-columns:1fr}.topbar button{width:100%}.compactHeader{grid-template-columns:1fr}.compactActions{display:grid;grid-template-columns:1fr 1fr}.compactActions button{width:100%}.stats{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
-<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.7</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
+<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
 <div id="appShell" class="hidden">
-<header><h1>News Article Compiler V4.7</h1><p>Sleek compact Economics news archive with Firestore, AI summary, optional strict / less-strict cleaning and exports.</p></header>
+<header><h1>News Article Compiler V4.6</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
 <main>
 <div class="card"><h2>Dashboard</h2><div class="stats"><div class="statBox"><div class="statNum" id="statTotal">0</div><div>Total articles</div></div><div class="statBox"><div class="statNum" id="statSources">0</div><div>Sources</div></div><div class="statBox"><div class="statNum" id="statGeneralKeywords">0</div><div>General keywords</div></div><div class="statBox"><div class="statNum" id="statEconomicKeywords">0</div><div>Economic terms</div></div><div class="statBox"><div class="statNum" id="statConcepts">0</div><div>Economics concepts</div></div></div></div>
 
@@ -60,14 +53,10 @@ button.secondary{background:#102848;border-color:#27456b;color:#dbeafe}.danger,b
 <h3>Full Raw Article Section</h3>
 <textarea id="content" placeholder="Full raw article text will appear here. This is always preserved."></textarea>
 
-<details class="aiTools">
-  <summary>AI Tools</summary>
-  <div class="row">
-    <button onclick="summarizeWithAI()">Generate Summary + Keywords</button>
-    <button class="secondary" onclick="generateCleanedVersion('loose')">Generate Less Strict Cleaned Version</button>
-  </div>
+<div class="row">
+  <button class="secondary" onclick="generateCleanedVersion('loose')">Generate Less Strict Cleaned Version</button>
   <button class="secondary" onclick="generateCleanedVersion('strict')">Generate Strict Cleaned Version</button>
-</details>
+</div>
 
 <h3>Less Strict AI-Cleaned Version</h3>
 <textarea id="cleanedLoose" placeholder="Less strict version: removes only obvious ads, prompts, navigation, repeated non-news content and leaves doubtful content untouched."></textarea>
@@ -81,6 +70,7 @@ button.secondary{background:#102848;border-color:#27456b;color:#dbeafe}.danger,b
   <option value="loose">Save Less Strict Cleaned Version</option>
   <option value="strict">Save Strict Cleaned Version</option>
 </select>
+<button onclick="summarizeWithAI()">Generate Summary + Keywords</button>
 <h3>Summary Section</h3><textarea id="summary" placeholder="AI summary will appear here"></textarea>
 <div class="row"><input id="keywords" placeholder="General keywords, separated by commas"><input id="economicKeywords" placeholder="Economic terms, separated by commas"></div><input id="economicsConcepts" placeholder="Economics concepts, separated by commas">
 <div class="row"><button onclick="saveArticle()">Save Article to Firestore</button><button class="secondary" onclick="clearForm()">Clear Form</button></div>
@@ -91,33 +81,39 @@ button.secondary{background:#102848;border-color:#27456b;color:#dbeafe}.danger,b
 <div class="row"><button onclick="bulkSaveArticles()">Start Bulk Save</button><button class="secondary" onclick="document.getElementById('bulkUrls').value=''">Clear URLs</button></div>
 <div id="bulkStatus" class="status hidden"></div><div id="bulkLog"></div></div>
 
-<div class="card"><h2>Search & Filters</h2>
-<div class="searchHub">
-  <input id="searchBox" placeholder="Search title, source, summary, full article, keywords..." oninput="renderArticles()">
+<div class="card"><h2>Display & Search</h2>
+<input id="searchBox" placeholder="Search title, source, summary, full article text, general keywords or economic terms" oninput="renderArticles()">
+<h3>Publication Date Range</h3>
+<div class="row3">
   <input id="dateFrom" type="date" onchange="renderArticles()" title="From publication date">
   <input id="dateTo" type="date" onchange="renderArticles()" title="To publication date">
-  <select id="sourceFilter" onchange="renderArticles()"><option value="">All Sources</option></select>
-</div>
-<div class="presetBar">
-  <button class="secondary" onclick="clearFilters()">All</button>
-  <button class="secondary" onclick="setDatePreset('last30')">Recent 30 Days</button>
-  <button class="secondary" onclick="setDatePreset('thisYear')">This Year</button>
-  <button class="secondary" onclick="clearDateRange()">Clear Dates</button>
-</div>
-<h3>General Keywords</h3><div id="keywordButtons" class="scrollKeywords"></div>
-<h3>Economic Terms</h3><div id="economicKeywordButtons" class="scrollKeywords"></div>
-<h3>Economics Concepts</h3><div id="economicsConceptButtons" class="scrollKeywords"></div>
-<div class="topbar">
-  <button class="secondary" onclick="downloadDatabase()">Export JSON</button>
-  <button class="green" onclick="downloadExcel()">Export Excel</button>
-  <button class="green" onclick="downloadWord()">Export Word</button>
-  <button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
-</div>
-<input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)">
-<p class="warning">Sleek mode: articles appear as compact cards. Click a card to view summary and article versions.</p>
+  <button class="secondary" onclick="clearDateRange()">Clear Date Range</button>
 </div>
 
-<div class="card"><h2>Saved Articles <span id="articleCount"></span></h2><div id="articleList" class="articleGrid"></div></div>
+<div class="presetBar">
+  <button class="secondary" onclick="setDatePreset('last7')">Last 7 Days</button>
+  <button class="secondary" onclick="setDatePreset('last30')">Last 30 Days</button>
+  <button class="secondary" onclick="setDatePreset('thisMonth')">This Month</button>
+  <button class="secondary" onclick="setDatePreset('thisYear')">This Year</button>
+</div>
+
+<h3>Search by Source</h3>
+<select id="sourceFilter" onchange="renderArticles()">
+  <option value="">All Sources</option>
+</select>
+
+<h3>Quick Search by General Keywords</h3>
+<div id="keywordButtons" class="scrollKeywords"></div>
+
+<h3>Quick Search by Economic Terms</h3>
+<div id="economicKeywordButtons" class="scrollKeywords"></div>
+<h3>Quick Search by Economics Concepts</h3>
+<div id="economicsConceptButtons" class="scrollKeywords"></div>
+<div class="topbar"><button class="secondary" onclick="clearFilters()">Show All Articles</button><button class="secondary" onclick="downloadDatabase()">Download JSON</button><button class="green" onclick="downloadExcel()">Download Excel</button><button class="green" onclick="downloadWord()">Download Word</button><button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button></div>
+<input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)">
+<p class="warning">Compact display: click an article row to expand. Date range and preset buttons use publication date. Keyword areas are scrollable.</p></div>
+
+<div class="card"><h2>Saved Articles <span id="articleCount"></span></h2><div id="articleList"></div></div>
 </main></div>
 
 <script>
@@ -272,32 +268,7 @@ function getFilteredArticles(){
 
 function renderArticles(){
  renderQuickButtons(articlesCache);renderSourceFilter(articlesCache);renderStats(); const filtered=getFilteredArticles(); document.getElementById("articleCount").textContent=`(${filtered.length} shown / ${articlesCache.length} total)`;
- document.getElementById("articleList").innerHTML=filtered.length?filtered.map(a=>`
- <div class="compactArticle">
-   <div class="compactHeader" onclick="toggleArticle('${a.id}')">
-     <div class="iconBubble">📰</div>
-     <div>
-       <div class="compactTitle">${escapeHtml(a.title)}</div>
-       <div class="compactMeta">${escapeHtml(a.source||"Unknown source")} • ${escapeHtml(a.publicationDate||"No date")}</div>
-       <div class="compactKeywords">${[...(a.economicKeywords||[]),...(a.economicsConcepts||[])].slice(0,4).map(k=>`<span class="miniTag">${escapeHtml(k)}</span>`).join("")}</div>
-     </div>
-     <div class="compactActions" onclick="event.stopPropagation()">
-       <button onclick="editArticle('${a.id}')">Edit</button>
-       <button class="danger" onclick="deleteArticle('${a.id}')">Del</button>
-     </div>
-   </div>
-   <div class="articleDetails ${expandedArticleId===a.id?"":"hidden"}">
-     ${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}
-     <h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div>
-     <h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div>
-     <h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div>
-     <h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div>
-     <details><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details>
-     <details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>
-     ${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}
-     ${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}
-   </div>
- </div>`).join(""):"<p>No articles found.</p>";
+ document.getElementById("articleList").innerHTML=filtered.length?filtered.map(a=>`<div class="compactArticle"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${(a.fullArticle||"").length.toLocaleString()} chars</div><div class="compactKeywords">${escapeHtml((a.keywords||[]).join(", "))}</div><div class="compactKeywords">${escapeHtml((a.economicKeywords||[]).join(", "))}</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div><div class="articleDetails ${expandedArticleId===a.id?"":"hidden"}">${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}<h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div><h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><details open><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details><details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}</div></div>`).join(""):"<p>No articles found.</p>";
 }
 
 function renderStats(){document.getElementById("statTotal").textContent=articlesCache.length;document.getElementById("statSources").textContent=new Set(articlesCache.map(a=>a.source).filter(Boolean)).size;document.getElementById("statGeneralKeywords").textContent=new Set(articlesCache.flatMap(a=>a.keywords||[]).filter(Boolean)).size;document.getElementById("statEconomicKeywords").textContent=new Set(articlesCache.flatMap(a=>a.economicKeywords||[]).filter(Boolean)).size;document.getElementById("statConcepts").textContent=new Set(articlesCache.flatMap(a=>a.economicsConcepts||[]).filter(Boolean)).size}
