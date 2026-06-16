@@ -1,4 +1,4 @@
-# News Article Compiler V4.6
+# News Article Compiler V4.6 Rectified Bulk Clean
 
 Change:
 - AI no longer cleans, rewrites, shortens, removes, or edits article content.
@@ -19,3 +19,16 @@ V4.6 changes:
 - Raw article remains preserved.
 - User can choose which version to save: raw, less strict, or strict.
 - Added api/cleanArticle.js using OpenRouter.
+
+Rectified cleaning:
+- Less Strict mode now preserves the full news article and removes only exact obvious junk blocks.
+- It explicitly keeps quotes, prices, statistics, names, dates, locations, examples, human-interest details and background context.
+- Added safety fallback: if AI removes too much, the raw article is returned instead.
+
+Bulk Less Strict cleaning update:
+- Bulk Save now automatically calls api/cleanArticle.js with mode="loose".
+- Each bulk article saves:
+  - fullArticleRaw as original extracted article
+  - fullArticleCleanedLoose as Less Strict AI-cleaned version
+  - fullArticle as Less Strict AI-cleaned version
+  - articleVersionSaved as "loose"

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Article Compiler V4.6</title>
+<title>News Article Compiler V4.6 Rectified Bulk Clean</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
@@ -39,9 +39,9 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 </style>
 </head>
 <body>
-<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
+<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6 Rectified Bulk Clean</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
 <div id="appShell" class="hidden">
-<header><h1>News Article Compiler V4.6</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
+<header><h1>News Article Compiler V4.6 Rectified Bulk Clean</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
 <main>
 <div class="card"><h2>Dashboard</h2><div class="stats"><div class="statBox"><div class="statNum" id="statTotal">0</div><div>Total articles</div></div><div class="statBox"><div class="statNum" id="statSources">0</div><div>Sources</div></div><div class="statBox"><div class="statNum" id="statGeneralKeywords">0</div><div>General keywords</div></div><div class="statBox"><div class="statNum" id="statEconomicKeywords">0</div><div>Economic terms</div></div><div class="statBox"><div class="statNum" id="statConcepts">0</div><div>Economics concepts</div></div></div></div>
 
@@ -59,10 +59,10 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 </div>
 
 <h3>Less Strict AI-Cleaned Version</h3>
-<textarea id="cleanedLoose" placeholder="Less strict version: removes only obvious ads, prompts, navigation, repeated non-news content and leaves doubtful content untouched."></textarea>
+<textarea id="cleanedLoose" placeholder="Less strict version: keeps the full news article and removes only exact obvious advertisement/prompt/navigation lines. It should not cut article paragraphs."></textarea>
 
 <h3>Strict AI-Cleaned Version</h3>
-<textarea id="cleanedStrict" placeholder="Strict version: removes the listed non-news content more firmly, but still preserves article paragraphs."></textarea>
+<textarea id="cleanedStrict" placeholder="Strict version: removes listed non-news content more firmly, but still must preserve all news paragraphs."></textarea>
 
 <h3>Choose Article Version to Save</h3>
 <select id="saveVersion">
@@ -76,7 +76,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 <div class="row"><button onclick="saveArticle()">Save Article to Firestore</button><button class="secondary" onclick="clearForm()">Clear Form</button></div>
 <div id="status" class="status hidden"></div></div>
 
-<div class="card"><h2>Bulk Save Multiple Articles</h2><p>Paste one article URL per line. Duplicate URLs will be skipped automatically.</p>
+<div class="card"><h2>Bulk Save Multiple Articles</h2><p>Paste one article URL per line. Duplicate URLs will be skipped automatically. Bulk save will also generate the Less Strict AI-Cleaned Version.</p>
 <textarea id="bulkUrls" placeholder="https://example.com/article-1&#10;https://example.com/article-2"></textarea>
 <div class="row"><button onclick="bulkSaveArticles()">Start Bulk Save</button><button class="secondary" onclick="document.getElementById('bulkUrls').value=''">Clear URLs</button></div>
 <div id="bulkStatus" class="status hidden"></div><div id="bulkLog"></div></div>
@@ -234,6 +234,18 @@ async function saveArticle(){
 }
 function splitTags(id){return document.getElementById(id).value.split(",").map(k=>k.trim()).filter(Boolean)}
 
+
+async function cleanArticleLooseForBulk(content){
+ const res=await withTimeout(fetch("/api/cleanArticle",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({mode:"loose",content})
+ }),45000,"Less strict AI cleaning took too long.");
+ const parsed=await res.json();
+ if(!res.ok)throw new Error(parsed.error||"Less strict AI cleaning failed.");
+ return parsed.cleanedArticle||content;
+}
+
 async function bulkSaveArticles(){
  const urls=document.getElementById("bulkUrls").value.split(/\n+/).map(u=>u.trim()).filter(Boolean); if(!urls.length){alert("Paste at least one URL.");return}
  if(!confirm(`Save ${urls.length} articles to Firestore? Duplicate URLs will be skipped.`))return;
@@ -241,10 +253,33 @@ async function bulkSaveArticles(){
  for(let i=0;i<urls.length;i++){const url=urls[i];setBulkStatus(`Processing ${i+1} of ${urls.length}...`);
   if(duplicateByUrl(url)){skipped++;addBulkLog(`Skipped duplicate: ${url}`,"bulkFail");continue}
   addBulkLog(`Working: ${url}`,"bulkWorking");
-  try{let article=await fetchReadableUrl(url); article=await summarizeCore(article); if(!article.publicationDate)throw new Error("No publication date found. Add manually.");
+  try{let article=await fetchReadableUrl(url); 
+   article=await summarizeCore(article); 
+   if(!article.publicationDate)throw new Error("No publication date found. Add manually.");
    if(duplicateByUrl(article.url)){skipped++;addBulkLog(`Skipped duplicate after extraction: ${article.url}`,"bulkFail");continue}
-   await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),{title:article.title,source:article.source,publicationDate:article.publicationDate,displayDate:article.publicationDate,url:article.url,fullArticle:article.fullArticle,summary:article.summary,keywords:article.keywords,economicKeywords:article.economicKeywords,economicsConcepts:article.economicsConcepts||[],fullArticleRaw:article.fullArticle,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}),15000,"Firestore save timed out.");
-   success++;addBulkLog(`Saved: ${article.title}`,"bulkOk");
+
+   addBulkLog(`Less strict cleaning: ${article.title}`,"bulkWorking");
+   const looseCleaned=await cleanArticleLooseForBulk(article.fullArticle);
+
+   await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),{
+     title:article.title,
+     source:article.source,
+     publicationDate:article.publicationDate,
+     displayDate:article.publicationDate,
+     url:article.url,
+     fullArticle:looseCleaned,
+     summary:article.summary,
+     keywords:article.keywords,
+     economicKeywords:article.economicKeywords,
+     economicsConcepts:article.economicsConcepts||[],
+     fullArticleRaw:article.fullArticle,
+     fullArticleCleanedLoose:looseCleaned,
+     fullArticleCleanedStrict:"",
+     articleVersionSaved:"loose",
+     createdAt:new Date().toISOString(),
+     updatedAt:new Date().toISOString()
+   }),15000,"Firestore save timed out.");
+   success++;addBulkLog(`Saved with Less Strict cleaned version: ${article.title}`,"bulkOk");
   }catch(err){failed++;addBulkLog(`Failed: ${url} — ${err.message}`,"bulkFail")}
   await new Promise(r=>setTimeout(r,700));
  }
