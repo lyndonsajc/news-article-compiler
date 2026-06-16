@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Article Compiler V4.6 Rectified Bulk Clean</title>
+<title>News Article Compiler V4.6 Bulk Export Minimal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
@@ -39,9 +39,9 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 </style>
 </head>
 <body>
-<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6 Rectified Bulk Clean</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
+<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6 Bulk Export Minimal</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
 <div id="appShell" class="hidden">
-<header><h1>News Article Compiler V4.6 Rectified Bulk Clean</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
+<header><h1>News Article Compiler V4.6 Bulk Export Minimal</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
 <main>
 <div class="card"><h2>Dashboard</h2><div class="stats"><div class="statBox"><div class="statNum" id="statTotal">0</div><div>Total articles</div></div><div class="statBox"><div class="statNum" id="statSources">0</div><div>Sources</div></div><div class="statBox"><div class="statNum" id="statGeneralKeywords">0</div><div>General keywords</div></div><div class="statBox"><div class="statNum" id="statEconomicKeywords">0</div><div>Economic terms</div></div><div class="statBox"><div class="statNum" id="statConcepts">0</div><div>Economics concepts</div></div></div></div>
 
@@ -336,8 +336,34 @@ function editArticle(id){const a=articlesCache.find(x=>x.id===id); if(!a)return;
 async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");await loadArticlesFromFirestore()}catch(err){alert("Delete failed: "+err.message)}}
 
 function downloadDatabase(){const backup={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,totalArticles:articlesCache.length,articles:articlesCache}; const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});downloadBlob(blob,`news-articles-firestore-backup-${new Date().toISOString().slice(0,10)}.json`)}
-function downloadExcel(){const rows=getFilteredArticles().map(a=>({Title:a.title||"",Source:a.source||"","Publication Date":a.publicationDate||"",URL:a.url||"",Summary:a.summary||"","General Keywords":(a.keywords||[]).join(", "),"Economic Terms":(a.economicKeywords||[]).join(", "),"Economics Concepts":(a.economicsConcepts||[]).join(", "),"Saved Article Version":a.articleVersionSaved||"raw","Full Article Saved":a.fullArticle||"","Raw Article":a.fullArticleRaw||a.fullArticle||"","Less Strict Cleaned":a.fullArticleCleanedLoose||"","Strict Cleaned":a.fullArticleCleanedStrict||""})); const wb=XLSX.utils.book_new(), ws=XLSX.utils.json_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,"News Articles");XLSX.writeFile(wb,`news-articles-${new Date().toISOString().slice(0,10)}.xlsx`)}
-async function downloadWord(){const {Document,Packer,Paragraph,TextRun,HeadingLevel}=window.docx, articles=getFilteredArticles(), children=[]; children.push(new Paragraph({text:"News Articles Export",heading:HeadingLevel.TITLE})); children.push(new Paragraph({text:`Exported: ${new Date().toLocaleString()} | Articles: ${articles.length}`})); articles.forEach((a,i)=>{children.push(new Paragraph({text:`${i+1}. ${a.title||"Untitled"}`,heading:HeadingLevel.HEADING_1}));children.push(new Paragraph({children:[new TextRun({text:`Source: ${a.source||""}`,bold:true})]}));children.push(new Paragraph({children:[new TextRun({text:`Publication Date: ${a.publicationDate||""}`,bold:true})]}));children.push(new Paragraph({text:`URL: ${a.url||""}`}));children.push(new Paragraph({text:"Summary",heading:HeadingLevel.HEADING_2}));children.push(new Paragraph({text:a.summary||""}));children.push(new Paragraph({text:"General Keywords",heading:HeadingLevel.HEADING_2}));children.push(new Paragraph({text:(a.keywords||[]).join(", ")}));children.push(new Paragraph({text:"Economic Terms",heading:HeadingLevel.HEADING_2}));children.push(new Paragraph({text:(a.economicKeywords||[]).join(", ")}));children.push(new Paragraph({text:"Full Article",heading:HeadingLevel.HEADING_2}));chunkText(a.fullArticleRaw||a.fullArticle||"",1800).forEach(c=>children.push(new Paragraph({text:c}))) }); const doc=new Document({sections:[{properties:{},children}]}); const blob=await Packer.toBlob(doc);downloadBlob(blob,`news-articles-${new Date().toISOString().slice(0,10)}.docx`)}
+function downloadExcel(){
+  const rows=getFilteredArticles().map(a=>({
+    Source:a.source||"",
+    "Publication Date":a.publicationDate||"",
+    URL:a.url||"",
+    "Saved Article Version":a.articleVersionSaved||"raw"
+  }));
+  const wb=XLSX.utils.book_new(), ws=XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,"News Articles");
+  XLSX.writeFile(wb,`news-articles-minimal-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+async function downloadWord(){
+  const {Document,Packer,Paragraph,TextRun,HeadingLevel}=window.docx, articles=getFilteredArticles(), children=[];
+  children.push(new Paragraph({text:"News Articles Export",heading:HeadingLevel.TITLE}));
+  children.push(new Paragraph({text:`Exported: ${new Date().toLocaleString()} | Articles: ${articles.length}`}));
+
+  articles.forEach((a,i)=>{
+    children.push(new Paragraph({text:`Article ${i+1}`,heading:HeadingLevel.HEADING_1}));
+    children.push(new Paragraph({children:[new TextRun({text:"Source: ",bold:true}),new TextRun({text:a.source||""})]}));
+    children.push(new Paragraph({children:[new TextRun({text:"Publication Date: ",bold:true}),new TextRun({text:a.publicationDate||""})]}));
+    children.push(new Paragraph({children:[new TextRun({text:"URL: ",bold:true}),new TextRun({text:a.url||""})]}));
+    children.push(new Paragraph({children:[new TextRun({text:"Saved Article Version: ",bold:true}),new TextRun({text:a.articleVersionSaved||"raw"})]}));
+  });
+
+  const doc=new Document({sections:[{properties:{},children}]});
+  const blob=await Packer.toBlob(doc);
+  downloadBlob(blob,`news-articles-minimal-${new Date().toISOString().slice(0,10)}.docx`);
+}
 function chunkText(text,size){const chunks=[];for(let i=0;i<text.length;i+=size)chunks.push(text.slice(i,i+size));return chunks}
 function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click()}
 

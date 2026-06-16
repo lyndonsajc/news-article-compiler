@@ -1,4 +1,4 @@
-# News Article Compiler V4.6 Rectified Bulk Clean
+# News Article Compiler V4.6 Bulk Export Minimal
 
 Change:
 - AI no longer cleans, rewrites, shortens, removes, or edits article content.
@@ -32,3 +32,7 @@ Bulk Less Strict cleaning update:
   - fullArticleCleanedLoose as Less Strict AI-cleaned version
   - fullArticle as Less Strict AI-cleaned version
   - articleVersionSaved as "loose"
+
+Export update:
+- Excel export now includes only Source, Publication Date, URL, Saved Article Version.
+- Word export now includes only Source, Publication Date, URL, Saved Article Version.
