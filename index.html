@@ -37,6 +37,11 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 .bulkItem{font-size:13px;padding:6px 8px;border-bottom:1px solid #eee}.bulkOk{color:#166534}.bulkFail{color:#991b1b}.bulkWorking{color:#1d4ed8}
 .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.statBox{background:#f9fafb;border:1px solid #ddd;border-radius:10px;padding:10px}.statNum{font-size:24px;font-weight:bold}
 @media(max-width:950px){.row,.row3{grid-template-columns:1fr}.topbar button{width:100%}.compactHeader{grid-template-columns:1fr}.compactActions{display:grid;grid-template-columns:1fr 1fr}.compactActions button{width:100%}.stats{grid-template-columns:1fr 1fr}}
+
+.pager{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:12px 0}
+.pager button{width:auto;padding:8px 12px}
+.pager .pageInfo{font-weight:700;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:8px 12px}
+.compactArticle.lazyOpen{border-color:#2563eb;box-shadow:0 8px 22px rgba(37,99,235,.14)}
 </style>
 </head>
 <body>
@@ -83,11 +88,11 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 <div id="bulkStatus" class="status hidden"></div><div id="bulkLog"></div></div>
 
 <div class="card"><h2>Display & Search</h2>
-<input id="searchBox" placeholder="Search title, source, summary, full article text, general keywords or economic terms" oninput="renderArticles()">
+<input id="searchBox" placeholder="Search title, source, summary, article text, general keywords or economic terms" oninput="debouncedRenderArticles()">
 <h3>Publication Date Range</h3>
 <div class="row3">
-  <input id="dateFrom" type="date" onchange="renderArticles()" title="From publication date">
-  <input id="dateTo" type="date" onchange="renderArticles()" title="To publication date">
+  <input id="dateFrom" type="date" onchange="currentPage=1;renderArticles()" title="From publication date">
+  <input id="dateTo" type="date" onchange="currentPage=1;renderArticles()" title="To publication date">
   <button class="secondary" onclick="clearDateRange()">Clear Date Range</button>
 </div>
 
@@ -99,7 +104,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 </div>
 
 <h3>Search by Source</h3>
-<select id="sourceFilter" onchange="renderArticles()">
+<select id="sourceFilter" onchange="currentPage=1;renderArticles()">
   <option value="">All Sources</option>
 </select>
 
@@ -114,7 +119,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 <input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)">
 <p class="warning">Compact display: click an article row to expand. Date range and preset buttons use publication date. Keyword areas are scrollable.</p></div>
 
-<div class="card"><h2>Saved Articles <span id="articleCount"></span></h2><div id="articleList"></div></div>
+<div class="card"><h2>Saved Articles <span id="articleCount"></span></h2><div id="paginationTop" class="pager"></div><div id="articleList"></div><div id="paginationBottom" class="pager"></div></div>
 </main></div>
 
 <script>
@@ -131,8 +136,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/p
 const firebaseConfig={apiKey:"AIzaSyAotyw1bpKRESwzR2b0j19Qn1b81FrI6Bk",authDomain:"news-article-compiler.firebaseapp.com",projectId:"news-article-compiler",storageBucket:"news-article-compiler.firebasestorage.app",messagingSenderId:"1042649880387",appId:"1:1042649880387:web:d5ef710d64f19acdd601f6"};
 const app=initializeApp(firebaseConfig), db=getFirestore(app), ARTICLES_COLLECTION="newsArticles";
 let articlesCache=[],editingId=null,activeDateFilter="",activeKeywordFilter="",activeEconomicKeywordFilter="",activeConceptFilter="",expandedArticleId="",lastSavedArticleId="";
+let currentPage=1;
+const ARTICLES_PER_PAGE=25;
+let renderDebounceTimer=null;
 
-Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle});
+Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,debouncedRenderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle,nextPage,prevPage,setPage});
 if(sessionStorage.getItem("newsCompilerUnlocked")==="yes")loadArticlesFromFirestore();
 window.addEventListener("newsCompilerUnlocked",loadArticlesFromFirestore);
 
@@ -314,16 +322,48 @@ async function loadArticlesFromFirestore(){
 }
 
 function clearForm(){["articleUrl","title","source","publicationDate","url","content","cleanedLoose","cleanedStrict","summary","keywords","economicKeywords","economicsConcepts"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=""});editingId=null;clearStatus()}
-function getFilteredArticles(){
- const q=document.getElementById("searchBox").value.toLowerCase(), dateFrom=document.getElementById("dateFrom").value, dateTo=document.getElementById("dateTo").value, sourceFilter=document.getElementById("sourceFilter").value;
- return articlesCache.filter(a=>{const haystack=[a.title,a.source,a.publicationDate,a.url,a.fullArticle,a.summary,(a.keywords||[]).join(" "),(a.economicKeywords||[]).join(" "),(a.economicsConcepts||[]).join(" ")].join(" ").toLowerCase(); const d=a.publicationDate||"";
- return haystack.includes(q)&&(!dateFrom||(d&&d>=dateFrom))&&(!dateTo||(d&&d<=dateTo))&&(!sourceFilter||a.source===sourceFilter)&&(!activeDateFilter||a.publicationDate===activeDateFilter)&&(!activeKeywordFilter||(a.keywords||[]).map(k=>k.toLowerCase()).includes(activeKeywordFilter.toLowerCase()))&&(!activeEconomicKeywordFilter||(a.economicKeywords||[]).map(k=>k.toLowerCase()).includes(activeEconomicKeywordFilter.toLowerCase()))&&(!activeConceptFilter||(a.economicsConcepts||[]).map(k=>k.toLowerCase()).includes(activeConceptFilter.toLowerCase()))})
+function debouncedRenderArticles(){
+ clearTimeout(renderDebounceTimer);
+ renderDebounceTimer=setTimeout(()=>{currentPage=1;renderArticles()},350);
 }
 
-function renderArticles(){
- renderQuickButtons(articlesCache);renderSourceFilter(articlesCache);renderStats(); const filtered=getFilteredArticles(); document.getElementById("articleCount").textContent=`(${filtered.length} shown / ${articlesCache.length} total)`;
- document.getElementById("articleList").innerHTML=filtered.length?filtered.map(a=>`<div id="article-${escapeAttribute(a.id)}" class="compactArticle ${lastSavedArticleId===a.id?"returnHighlight":""}"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${(a.fullArticle||"").length.toLocaleString()} chars</div><div class="compactKeywords">${escapeHtml((a.keywords||[]).join(", "))}</div><div class="compactKeywords">${escapeHtml((a.economicKeywords||[]).join(", "))}</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div><div class="articleDetails ${expandedArticleId===a.id?"":"hidden"}">${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}<h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div><h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><details open><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details><details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}</div></div>`).join(""):"<p>No articles found.</p>";
+function getFilteredArticles(){
+ const q=(document.getElementById("searchBox").value||"").toLowerCase().trim(), dateFrom=document.getElementById("dateFrom").value, dateTo=document.getElementById("dateTo").value, sourceFilter=document.getElementById("sourceFilter").value;
+ return articlesCache.filter(a=>{
+  const quickHaystack=[a.title,a.source,a.publicationDate,a.url,a.summary,(a.keywords||[]).join(" "),(a.economicKeywords||[]).join(" "),(a.economicsConcepts||[]).join(" ")].join(" ").toLowerCase();
+  const fullText=(q.length>=4)?String(a.fullArticle||a.fullArticleRaw||a.fullArticleCleanedLoose||a.fullArticleCleanedStrict||"").toLowerCase():"";
+  const d=a.publicationDate||"";
+  return (!q||quickHaystack.includes(q)||fullText.includes(q))&&(!dateFrom||(d&&d>=dateFrom))&&(!dateTo||(d&&d<=dateTo))&&(!sourceFilter||a.source===sourceFilter)&&(!activeDateFilter||a.publicationDate===activeDateFilter)&&(!activeKeywordFilter||(a.keywords||[]).map(k=>k.toLowerCase()).includes(activeKeywordFilter.toLowerCase()))&&(!activeEconomicKeywordFilter||(a.economicKeywords||[]).map(k=>k.toLowerCase()).includes(activeEconomicKeywordFilter.toLowerCase()))&&(!activeConceptFilter||(a.economicsConcepts||[]).map(k=>k.toLowerCase()).includes(activeConceptFilter.toLowerCase()));
+ });
 }
+
+function renderArticleDetails(a){
+ return `${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}<h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div><h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><details open><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details><details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}`;
+}
+
+function renderPagination(filteredLength){
+ const totalPages=Math.max(1,Math.ceil(filteredLength/ARTICLES_PER_PAGE));
+ if(currentPage>totalPages)currentPage=totalPages;
+ if(currentPage<1)currentPage=1;
+ const html=`<button class="secondary" onclick="prevPage()" ${currentPage<=1?"disabled":""}>← Previous</button><span class="pageInfo">Page ${currentPage} of ${totalPages} · ${ARTICLES_PER_PAGE} per page</span><button class="secondary" onclick="nextPage()" ${currentPage>=totalPages?"disabled":""}>Next →</button>`;
+ ["paginationTop","paginationBottom"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=filteredLength>ARTICLES_PER_PAGE?html:""});
+}
+function nextPage(){currentPage++;renderArticles();window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
+function prevPage(){currentPage--;renderArticles();window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
+function setPage(p){currentPage=p;renderArticles()}
+
+function renderArticles(){
+ renderQuickButtons(articlesCache);renderSourceFilter(articlesCache);renderStats();
+ const filtered=getFilteredArticles();
+ const totalPages=Math.max(1,Math.ceil(filtered.length/ARTICLES_PER_PAGE));
+ if(currentPage>totalPages)currentPage=totalPages;
+ const start=(currentPage-1)*ARTICLES_PER_PAGE;
+ const pageItems=filtered.slice(start,start+ARTICLES_PER_PAGE);
+ document.getElementById("articleCount").textContent=`(${filtered.length} filtered / ${articlesCache.length} total · showing ${pageItems.length})`;
+ renderPagination(filtered.length);
+ document.getElementById("articleList").innerHTML=pageItems.length?pageItems.map(a=>`<div id="article-${escapeAttribute(a.id)}" class="compactArticle ${expandedArticleId===a.id?"lazyOpen":""} ${lastSavedArticleId===a.id?"returnHighlight":""}"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${(a.fullArticle||a.fullArticleRaw||"").length.toLocaleString()} chars</div><div class="compactKeywords">${escapeHtml((a.keywords||[]).join(", "))}</div><div class="compactKeywords">${escapeHtml((a.economicKeywords||[]).join(", "))}</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div>${expandedArticleId===a.id?`<div class="articleDetails">${renderArticleDetails(a)}</div>`:""}</div>`).join(""):"<p>No articles found.</p>";
+}
+
 
 function renderStats(){document.getElementById("statTotal").textContent=articlesCache.length;document.getElementById("statSources").textContent=new Set(articlesCache.map(a=>a.source).filter(Boolean)).size;document.getElementById("statGeneralKeywords").textContent=new Set(articlesCache.flatMap(a=>a.keywords||[]).filter(Boolean)).size;document.getElementById("statEconomicKeywords").textContent=new Set(articlesCache.flatMap(a=>a.economicKeywords||[]).filter(Boolean)).size;document.getElementById("statConcepts").textContent=new Set(articlesCache.flatMap(a=>a.economicsConcepts||[]).filter(Boolean)).size}
 function renderSourceFilter(articles){const select=document.getElementById("sourceFilter"), current=select.value, sources=[...new Set(articles.map(a=>a.source).filter(Boolean))].sort((a,b)=>a.localeCompare(b));select.innerHTML=`<option value="">All Sources</option>`+sources.map(s=>`<option value="${escapeAttribute(s)}">${escapeHtml(s)}</option>`).join("");select.value=current}
@@ -338,12 +378,14 @@ function goToSavedArticle(id){
  ["searchBox","dateFrom","dateTo","sourceFilter"].forEach(fieldId=>{const el=document.getElementById(fieldId);if(el)el.value=""});
  expandedArticleId=id;
  lastSavedArticleId=id;
+ const savedIndex=articlesCache.findIndex(a=>a.id===id);
+ currentPage=savedIndex>=0?Math.floor(savedIndex/ARTICLES_PER_PAGE)+1:1;
  renderArticles();
  setTimeout(()=>{const row=document.getElementById("article-"+id);if(row){row.scrollIntoView({behavior:"smooth",block:"center"})}},80);
 }
 
 function toggleArticle(id){expandedArticleId=expandedArticleId===id?"":id;renderArticles()}
-function filterByDate(date){activeDateFilter=date;renderArticles()} function filterByKeyword(k){activeKeywordFilter=k;renderArticles()} function filterByEconomicKeyword(k){activeEconomicKeywordFilter=k;renderArticles()} function filterByConcept(k){activeConceptFilter=k;renderArticles()}
+function filterByDate(date){activeDateFilter=date;currentPage=1;renderArticles()} function filterByKeyword(k){activeKeywordFilter=k;currentPage=1;renderArticles()} function filterByEconomicKeyword(k){activeEconomicKeywordFilter=k;currentPage=1;renderArticles()} function filterByConcept(k){activeConceptFilter=k;currentPage=1;renderArticles()}
 function setDatePreset(type){
  const today=new Date();
  const to=today.toISOString().slice(0,10);
@@ -358,8 +400,8 @@ function setDatePreset(type){
  renderArticles();
 }
 window.setDatePreset=setDatePreset;
-function clearDateRange(){document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";activeDateFilter="";renderArticles()}
-function clearFilters(){activeDateFilter="";activeKeywordFilter="";activeEconomicKeywordFilter="";activeConceptFilter="";document.getElementById("searchBox").value="";document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";document.getElementById("sourceFilter").value="";renderArticles()}
+function clearDateRange(){document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";activeDateFilter="";currentPage=1;renderArticles()}
+function clearFilters(){activeDateFilter="";activeKeywordFilter="";activeEconomicKeywordFilter="";activeConceptFilter="";document.getElementById("searchBox").value="";document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";document.getElementById("sourceFilter").value="";currentPage=1;renderArticles()}
 
 function editArticle(id){const a=articlesCache.find(x=>x.id===id); if(!a)return; editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";document.getElementById("summary").value=a.summary||"";document.getElementById("keywords").value=(a.keywords||[]).join(", ");document.getElementById("economicKeywords").value=(a.economicKeywords||[]).join(", ");document.getElementById("economicsConcepts").value=(a.economicsConcepts||[]).join(", ");window.scrollTo({top:0,behavior:"smooth"})}
 async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");await loadArticlesFromFirestore()}catch(err){alert("Delete failed: "+err.message)}}
