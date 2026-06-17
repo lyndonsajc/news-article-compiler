@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Article Compiler V4.6</title>
+<title>News Article Compiler V4.6 Bulk Export Minimal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
@@ -29,6 +29,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 .lockScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#111827;padding:20px}
 .lockBox{background:white;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 10px 30px #0005}
 .compactArticle{border:1px solid #ddd;border-radius:10px;background:white;margin-bottom:8px;overflow:hidden}
+.compactArticle.returnHighlight{border:2px solid #16a34a;box-shadow:0 0 0 4px #dcfce7}
 .compactHeader{display:grid;grid-template-columns:1.3fr .7fr .6fr 1fr 1fr auto;gap:8px;align-items:center;padding:10px 12px;cursor:pointer}
 .compactTitle{font-weight:bold}.compactMeta{font-size:13px;color:#666}.compactKeywords{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
 .compactActions{display:flex;gap:6px}.compactActions button{width:auto;margin:0;padding:6px 10px;font-size:13px}
@@ -39,9 +40,9 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 </style>
 </head>
 <body>
-<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
+<div id="lockScreen" class="lockScreen"><div class="lockBox"><h1>News Article Compiler V4.6 Bulk Export Minimal</h1><p>Enter passcode to continue.</p><input id="passcodeInput" type="password" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkPasscode()"><button onclick="checkPasscode()">Unlock</button><p id="passcodeError" style="color:#dc2626"></p></div></div>
 <div id="appShell" class="hidden">
-<header><h1>News Article Compiler V4.6</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
+<header><h1>News Article Compiler V4.6 Bulk Export Minimal</h1><p>Firestore article bank with raw article preservation, summary AI, and optional strict / less-strict AI article cleaning.</p></header>
 <main>
 <div class="card"><h2>Dashboard</h2><div class="stats"><div class="statBox"><div class="statNum" id="statTotal">0</div><div>Total articles</div></div><div class="statBox"><div class="statNum" id="statSources">0</div><div>Sources</div></div><div class="statBox"><div class="statNum" id="statGeneralKeywords">0</div><div>General keywords</div></div><div class="statBox"><div class="statNum" id="statEconomicKeywords">0</div><div>Economic terms</div></div><div class="statBox"><div class="statNum" id="statConcepts">0</div><div>Economics concepts</div></div></div></div>
 
@@ -129,13 +130,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/p
 
 const firebaseConfig={apiKey:"AIzaSyAotyw1bpKRESwzR2b0j19Qn1b81FrI6Bk",authDomain:"news-article-compiler.firebaseapp.com",projectId:"news-article-compiler",storageBucket:"news-article-compiler.firebasestorage.app",messagingSenderId:"1042649880387",appId:"1:1042649880387:web:d5ef710d64f19acdd601f6"};
 const app=initializeApp(firebaseConfig), db=getFirestore(app), ARTICLES_COLLECTION="newsArticles";
-let articlesCache=[],editingId=null,activeDateFilter="",activeKeywordFilter="",activeEconomicKeywordFilter="",activeConceptFilter="",expandedArticleId="";
+let articlesCache=[],editingId=null,activeDateFilter="",activeKeywordFilter="",activeEconomicKeywordFilter="",activeConceptFilter="",expandedArticleId="",lastSavedArticleId="";
 
-Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,toggleArticle,bulkSaveArticles,generateCleanedVersion});
+Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle});
 if(sessionStorage.getItem("newsCompilerUnlocked")==="yes")loadArticlesFromFirestore();
 window.addEventListener("newsCompilerUnlocked",loadArticlesFromFirestore);
 
 function setStatus(msg,isError=false){const el=document.getElementById("status");el.textContent=msg;el.classList.remove("hidden");el.classList.toggle("error",isError)}
+function setStatusHtml(html,isError=false){const el=document.getElementById("status");el.innerHTML=html;el.classList.remove("hidden");el.classList.toggle("error",isError)}
 function clearStatus(){const el=document.getElementById("status");el.textContent="";el.classList.add("hidden");el.classList.remove("error")}
 function setBulkStatus(msg){const el=document.getElementById("bulkStatus");el.textContent=msg;el.classList.remove("hidden")}
 function addBulkLog(msg,cls=""){const div=document.createElement("div");div.className="bulkItem "+cls;div.textContent=msg;document.getElementById("bulkLog").prepend(div)}
@@ -229,7 +231,24 @@ async function saveArticle(){
  const chosenArticle=versionChoice==="strict"?(strictArticle||rawArticle):versionChoice==="loose"?(looseArticle||rawArticle):rawArticle;
  const article={title:document.getElementById("title").value.trim(),source:document.getElementById("source").value.trim(),publicationDate,displayDate:publicationDate,url,fullArticleRaw:rawArticle,fullArticleCleanedLoose:looseArticle,fullArticleCleanedStrict:strictArticle,articleVersionSaved:versionChoice,fullArticle:chosenArticle,summary:document.getElementById("summary").value.trim(),keywords:splitTags("keywords"),economicKeywords:splitTags("economicKeywords"),economicsConcepts:splitTags("economicsConcepts"),updatedAt:new Date().toISOString()};
  if(!article.title||!article.fullArticle){alert("Title and full article text are required.");return}
- try{setStatus("Saving article to Firestore..."); if(editingId){await withTimeout(setDoc(doc(db,ARTICLES_COLLECTION,editingId),article,{merge:true}),15000,"Firestore save timed out.")}else{article.createdAt=new Date().toISOString();await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),article),15000,"Firestore save timed out.")} editingId=null;clearForm();await loadArticlesFromFirestore();setStatus("Article saved to Firestore.");setTimeout(clearStatus,1800)}
+ try{
+  setStatus("Saving article to Firestore...");
+  const wasEditing=!!editingId;
+  let savedId=editingId;
+  if(editingId){
+    await withTimeout(setDoc(doc(db,ARTICLES_COLLECTION,editingId),article,{merge:true}),15000,"Firestore save timed out.");
+  }else{
+    article.createdAt=new Date().toISOString();
+    const newDocRef=await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),article),15000,"Firestore save timed out.");
+    savedId=newDocRef.id;
+  }
+  lastSavedArticleId=savedId;
+  editingId=null;
+  clearForm();
+  await loadArticlesFromFirestore();
+  const label=wasEditing?"Edited article saved.":"Article saved.";
+  setStatusHtml(`${label} <button class="green" style="width:auto;margin-left:8px;padding:7px 12px" onclick="goToSavedArticle('${escapeAttribute(savedId)}')">Go back to saved entry</button>`);
+}
  catch(err){console.error(err);setStatus("Save failed: "+err.message,true)}
 }
 function splitTags(id){return document.getElementById(id).value.split(",").map(k=>k.trim()).filter(Boolean)}
@@ -303,7 +322,7 @@ function getFilteredArticles(){
 
 function renderArticles(){
  renderQuickButtons(articlesCache);renderSourceFilter(articlesCache);renderStats(); const filtered=getFilteredArticles(); document.getElementById("articleCount").textContent=`(${filtered.length} shown / ${articlesCache.length} total)`;
- document.getElementById("articleList").innerHTML=filtered.length?filtered.map(a=>`<div class="compactArticle"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${(a.fullArticle||"").length.toLocaleString()} chars</div><div class="compactKeywords">${escapeHtml((a.keywords||[]).join(", "))}</div><div class="compactKeywords">${escapeHtml((a.economicKeywords||[]).join(", "))}</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div><div class="articleDetails ${expandedArticleId===a.id?"":"hidden"}">${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}<h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div><h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><details open><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details><details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}</div></div>`).join(""):"<p>No articles found.</p>";
+ document.getElementById("articleList").innerHTML=filtered.length?filtered.map(a=>`<div id="article-${escapeAttribute(a.id)}" class="compactArticle ${lastSavedArticleId===a.id?"returnHighlight":""}"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${(a.fullArticle||"").length.toLocaleString()} chars</div><div class="compactKeywords">${escapeHtml((a.keywords||[]).join(", "))}</div><div class="compactKeywords">${escapeHtml((a.economicKeywords||[]).join(", "))}</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div><div class="articleDetails ${expandedArticleId===a.id?"":"hidden"}">${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}<h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div><h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><details open><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details><details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}</div></div>`).join(""):"<p>No articles found.</p>";
 }
 
 function renderStats(){document.getElementById("statTotal").textContent=articlesCache.length;document.getElementById("statSources").textContent=new Set(articlesCache.map(a=>a.source).filter(Boolean)).size;document.getElementById("statGeneralKeywords").textContent=new Set(articlesCache.flatMap(a=>a.keywords||[]).filter(Boolean)).size;document.getElementById("statEconomicKeywords").textContent=new Set(articlesCache.flatMap(a=>a.economicKeywords||[]).filter(Boolean)).size;document.getElementById("statConcepts").textContent=new Set(articlesCache.flatMap(a=>a.economicsConcepts||[]).filter(Boolean)).size}
@@ -311,6 +330,16 @@ function renderSourceFilter(articles){const select=document.getElementById("sour
 function renderQuickButtons(articles){
  const keywords=[...new Set(articles.flatMap(a=>a.keywords||[]).map(k=>k.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); document.getElementById("keywordButtons").innerHTML=keywords.length?keywords.map(k=>`<button class="quickBtn ${activeKeywordFilter===k?"activeBtn":""}" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join(""):`<span>No general keywords yet.</span>`;
  const econ=[...new Set(articles.flatMap(a=>a.economicKeywords||[]).map(k=>k.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); document.getElementById("economicKeywordButtons").innerHTML=econ.length?econ.map(k=>`<button class="quickBtn ${activeEconomicKeywordFilter===k?"activeBtn":""}" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join(""):`<span>No economic terms yet.</span>`; const concepts=[...new Set(articles.flatMap(a=>a.economicsConcepts||[]).map(k=>k.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); document.getElementById("economicsConceptButtons").innerHTML=concepts.length?concepts.map(k=>`<button class="quickBtn ${activeConceptFilter===k?"activeBtn":""}" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join(""):`<span>No economics concepts yet.</span>`;
+}
+
+
+function goToSavedArticle(id){
+ activeDateFilter="";activeKeywordFilter="";activeEconomicKeywordFilter="";activeConceptFilter="";
+ ["searchBox","dateFrom","dateTo","sourceFilter"].forEach(fieldId=>{const el=document.getElementById(fieldId);if(el)el.value=""});
+ expandedArticleId=id;
+ lastSavedArticleId=id;
+ renderArticles();
+ setTimeout(()=>{const row=document.getElementById("article-"+id);if(row){row.scrollIntoView({behavior:"smooth",block:"center"})}},80);
 }
 
 function toggleArticle(id){expandedArticleId=expandedArticleId===id?"":id;renderArticles()}
