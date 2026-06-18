@@ -1,114 +1,3 @@
-function stripMarkdownNoise(text = "") {
-  return String(text)
-    .replace(/\r/g, "")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/!Image\s*\d+[^\n]*/gi, "")
-    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
-    .replace(/[ \t]+$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function isJunkLine(line = "") {
-  const l = line.trim();
-  if (!l) return false;
-  const compact = l.replace(/\s+/g, " ").trim();
-
-  const exact = new Set([
-    "Skip to main content", "Sign In", "Account", "My Feed", "Edition Menu", "Edition:", "World", "Singapore", "Indonesia", "Asia",
-    "Search", "Close", "All", "FAST", "BookmarkBookmarkShare", "WhatsAppTelegramFacebookTwitterEmailLinkedIn", "Facebook", "X", "Youtube", "LinkedIn", "RSS",
-    "Advertisement", "ADVERTISEMENT", "Show More", "Show Less", "Newsletter", "Subscribe here", "Download here", "Join here", "More…", "Thanks for sharing!", "AddToAny",
-    "Follow our news", "Recent Searches", "Trending Topics", "Set CNA as your preferred source on Google", "Read a summary of this article on FAST.",
-    "Get bite-sized news via a new", "cards interface. Give it a try.", "Click here to return to FAST Tap here to return to FAST", "Tap here to return to FAST",
-    "CNA Games", "Guess Word", "Buzzword", "Mini Sudoku", "Mini Crossword", "Word Search", "Fetching more news", "Official Domain|Terms & Conditions|Privacy Policy|Report Vulnerability|Online Links Policy"
-  ]);
-  if (exact.has(compact)) return true;
-
-  return [
-    /^\*\s*(Sign In|Account|My Feed|CNA|Lifestyle|Luxury|TODAY|Search|All|Top Stories|Latest News|Asia|East Asia|Singapore|World|Commentary|CNA Explains|Sustainability|Business|Sport|Insider|Watch|Listen|Live TV|News Reports|Documentaries & Shows|TV Schedule|Podcasts|Radio Schedule|Special Reports|Games|More|Newsletters|Weather|Advertise With Us|Contact Us)\b/i,
-    /Id \d+\s+Type\s+(landing_page|external)/i,
-    /^#{2,6}\s*(CNAR|Search|Trending Topics|Follow CNA|Recent Searches|CNA Sections|About CNA|Also worth reading|Partner Recommendations|Related Topics|Sign up for our newsletters|Get the CNA app|Week in Review|Morning Brief)\b/i,
-    /^(Homepage link|Published:)/i,
-    /^(Subscribe to|Our chief editor shares|An automated curation|Stay updated with notifications|Join our channel)/i,
-    /^(CNA ExplainsChina|Chinaartificial intelligenceIndonesia|Malaysia|podcasts|WellnessThailandJapan)/i,
-    /^This browser is no longer supported$/i,
-    /^We know it's a hassle to switch browsers/i,
-    /^To continue, upgrade to a supported browser/i,
-    /^Upgraded but still having issues\?/i,
-    /^Copyright©/i,
-    /^Mediacorp Pte Ltd/i,
-    /^Add CNA as a trusted source/i,
-    /^Expand to read the full story/i,
-    /^Get WhatsApp alerts/i,
-    /^Image \d+:/i,
-    /^✓$/,
-    /^%20AppleWebKit/i
-  ].some(rx => rx.test(compact));
-}
-
-function isStopHeading(line = "") {
-  const l = line.trim();
-  return [
-    /^Newsletter$/i,
-    /^##\s*Week in Review/i,
-    /^##\s*Morning Brief/i,
-    /^##\s*Sign up for our newsletters/i,
-    /^##\s*Get the CNA app/i,
-    /^Get WhatsApp alerts/i,
-    /^####\s*Related Topics/i,
-    /^##\s*Also worth reading/i,
-    /^Partner Recommendations/i,
-    /^Advertisement$/i,
-    /^Expand to read the full story/i,
-    /^Fetching more news/i,
-    /^CNA Sections/i,
-    /^About CNA/i,
-    /^Copyright©/i,
-    /^This browser is no longer supported/i
-  ].some(rx => rx.test(l));
-}
-
-function deterministicStrictClean(text = "", mode = "loose") {
-  let cleaned = stripMarkdownNoise(text);
-  let lines = cleaned.split("\n").map(x => x.trim()).filter(Boolean);
-
-  // If Jina/reader output includes repeated site navigation before the real article,
-  // start from the last H1 article headline. This keeps the article title, standfirst,
-  // date, caption and body, while removing menus above it.
-  if (mode === "strict") {
-    const h1Indexes = [];
-    lines.forEach((line, i) => {
-      if (/^#\s+/.test(line) && !/\s-\s(CNA|BBC|Reuters|AP|AFP|The Straits Times)$/i.test(line)) h1Indexes.push(i);
-    });
-    if (h1Indexes.length) lines = lines.slice(h1Indexes[h1Indexes.length - 1]);
-  }
-
-  const out = [];
-  let afterSource = false;
-  for (const line of lines) {
-    if (afterSource) break;
-    if (isStopHeading(line)) break;
-    if (isJunkLine(line)) continue;
-    if (/^#+\s*$/.test(line)) continue;
-    if (/^\*\s*$/.test(line)) continue;
-
-    // Remove long recommendation/tracking URLs and image-only fragments.
-    if (/^https?:\/\//i.test(line) && line.length > 120) continue;
-    if (/boost-recommend|outbrain|obOrigUrl|publisher_name|appgallery|play\.google|itunes\.apple/i.test(line)) continue;
-
-    out.push(line);
-    if (/^Source:\s*/i.test(line)) afterSource = true;
-  }
-
-  cleaned = out.join("\n\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/\bAdvertisement\b\n?/gi, "")
-    .replace(/\bADVERTISEMENT\b\n?/g, "")
-    .trim();
-
-  return cleaned || text;
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -118,36 +7,72 @@ export default async function handler(req, res) {
   const { mode = "loose", content = "" } = req.body || {};
   if (!content.trim()) return res.status(400).json({ error: "No article content provided." });
 
-  const deterministicCleanedInput = deterministicStrictClean(content, mode);
-
   const removableItems = `
-Advertisements and ad placeholders
-Sponsored content and partner recommendations
-Related articles, also-worth-reading sections and read-more sections
-Subscription prompts and newsletter sign-up blocks
-Social media share buttons and follow-us blocks
-Navigation menus, edition menus, search menus and footer text
-FAST/cards app prompts and mobile-app prompts
-Games widgets and recommendation widgets
-Copyright, terms, privacy and browser-warning text
-Repeated duplicated article/menu content
-Image galleries and image-only lines
-Long tracking URLs and recommendation URLs
+Advertisements
+Sponsored content
+Related articles
+Read more sections
+Subscription prompts
+Newsletter prompts
+Social media links
+Navigation menus
+Footer text
+Copyright text
+Repeated content
+Image galleries
+Video descriptions
 `;
 
   const looseInstruction = `
 LESS STRICT MODE:
-Return the SAME article, in the SAME order, with only exact obvious junk blocks removed.
-If unsure, KEEP the text. Do not rewrite, summarise, merge paragraphs, or shorten sentences.
+Your job is NOT to summarise, select, rewrite, condense, or extract the article.
+Your job is to return the SAME article, in the SAME order, with only exact obvious junk blocks removed.
+
+Remove only blocks/lines that are clearly:
+- advertisement labels or ad placeholders
+- subscription prompts
+- newsletter prompts
+- social media/share/navigation/footer/copyright text
+- related article/read more blocks
+- repeated duplicate text
+- image gallery or video description blocks
+
+KEEP EVERYTHING ELSE.
+
+Very important:
+- Keep every paragraph that contains a person, organisation, place, date, price, cost, statistic, quotation, example, explanation, background information, or policy detail.
+- Keep captions if they identify useful article context or information.
+- Keep article paragraphs even if they are not economics-related.
+- Keep paragraphs about interviewees, small examples, human-interest details, and background context.
+- If unsure, KEEP the text.
+- Do not remove a paragraph just because it is short.
+- Do not remove a paragraph just because it appears after an image marker.
+- Do not remove continuation paragraphs.
+- Do not rewrite the article.
+- Do not merge paragraphs.
+- Do not change wording.
+- Do not shorten sentences.
 `;
 
   const strictInstruction = `
 STRICT MODE:
-Be firm with website junk. Remove repeated navigation/menu/search/share/footer/newsletter/games/recommendation/FAST/app/download/browser-warning blocks.
-For CNA-style pages, keep the real article section only: headline, standfirst, useful caption/date, body paragraphs, and source line.
-Still KEEP all article body paragraphs, quotes, statistics, prices, examples, names, dates, locations, policy details, background information and human-interest details.
+Return the same article text in the same order, but remove the listed non-news blocks more firmly when clearly identifiable.
+
+Still KEEP:
+- all article body paragraphs
+- quotes
+- statistics
+- prices and costs
+- examples
+- names
+- dates
+- locations
+- policy details
+- background information
+- human-interest details that are part of the article
+
 Do not summarise, rewrite, condense or paraphrase.
-If unsure whether a paragraph is article content, KEEP it.
+If unsure, keep the text.
 `;
 
   const instruction = mode === "strict" ? strictInstruction : looseInstruction;
@@ -165,13 +90,11 @@ ${removableItems}
 
 ${instruction}
 
-Important:
-- The input may already have been pre-cleaned by rules. Continue cleaning only if obvious junk remains.
-- Keep article wording and paragraph order unchanged.
-- Do not add comments or explanations.
+Additional preservation rule:
+The cleanedArticle should normally be almost as long as the original article. If large parts of the article would be removed, that is probably wrong. Preserve the original article content unless the text is clearly one of the removable non-news items.
 
 Article text:
-${deterministicCleanedInput.slice(0, 22000)}
+${content.slice(0, 22000)}
 `;
 
   try {
@@ -198,26 +121,23 @@ ${deterministicCleanedInput.slice(0, 22000)}
 
     let parsed;
     try { parsed = JSON.parse(clean); }
-    catch { return res.status(200).json({ cleanedArticle: deterministicCleanedInput, warning: "AI returned invalid JSON, so rule-based strict cleaning was used." }); }
+    catch { return res.status(500).json({ error: "AI returned invalid JSON.", raw: text }); }
 
-    const aiCleaned = parsed.cleanedArticle || deterministicCleanedInput;
-    const finalCleaned = deterministicStrictClean(aiCleaned, mode);
+    const cleaned = parsed.cleanedArticle || content;
     const originalLength = content.trim().length;
-    const precleanLength = deterministicCleanedInput.trim().length;
-    const finalLength = finalCleaned.trim().length;
-    const minimumRatio = mode === "strict" ? 0.45 : 0.70;
+    const cleanedLength = cleaned.trim().length;
+    const minimumRatio = mode === "strict" ? 0.55 : 0.75;
 
-    // Compare against the rule-cleaned input, not the raw extraction, because raw pages can contain huge menus.
-    if (precleanLength > 2000 && finalLength < precleanLength * minimumRatio) {
+    if (originalLength > 2000 && cleanedLength < originalLength * minimumRatio) {
       return res.status(200).json({
-        cleanedArticle: deterministicCleanedInput,
-        warning: `AI cleaning removed too much article content, so rule-based cleaning was used instead. Raw length: ${originalLength}, pre-cleaned length: ${precleanLength}, AI length: ${finalLength}.`
+        cleanedArticle: content,
+        warning: `AI cleaning removed too much content, so raw article was preserved instead. Original length: ${originalLength}, cleaned length: ${cleanedLength}.`
       });
     }
 
-    return res.status(200).json({ cleanedArticle: finalCleaned });
+    return res.status(200).json({ cleanedArticle: cleaned });
 
   } catch (err) {
-    return res.status(200).json({ cleanedArticle: deterministicCleanedInput, warning: err.message || "AI cleaning failed, so rule-based strict cleaning was used." });
+    return res.status(500).json({ error: err.message || "Server error." });
   }
 }
