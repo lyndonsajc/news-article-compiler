@@ -87,7 +87,10 @@ function deterministicStrictClean(text = "", mode = "loose") {
   let afterSource = false;
   for (const line of lines) {
     if (afterSource) break;
-    if (isStopHeading(line)) break;
+    if (isStopHeading(line)) {
+      if (mode === "strict") break;
+      continue;
+    }
     if (isJunkLine(line)) continue;
     if (/^#+\s*$/.test(line)) continue;
     if (/^\*\s*$/.test(line)) continue;
@@ -140,9 +143,50 @@ Long tracking URLs and recommendation URLs
 `;
 
   const looseInstruction = `
-LESS STRICT MODE:
-Return the SAME article, in the SAME order, with only exact obvious junk blocks removed.
-If unsure, KEEP the text. Do not rewrite, summarise, merge paragraphs, or shorten sentences.
+LESS STRICT MODE — NEWSPAPER CLIPPING MODE:
+Your task is to clean an article, not summarise it.
+
+DO NOT:
+- Summarise
+- Rewrite
+- Paraphrase
+- Shorten
+- Condense
+- Merge paragraphs
+- Remove quotes
+- Remove examples
+- Remove anecdotes
+- Remove statistics
+- Remove background information
+- Remove historical context
+
+KEEP:
+- All article paragraphs
+- All quotations
+- All statistics
+- All examples
+- All interviews
+- All case studies
+- All background sections
+- All context explaining the story
+
+ONLY REMOVE:
+- Advertisements
+- Newsletter sign-up prompts
+- Subscription prompts
+- Related article links
+- Navigation menus
+- Social media prompts
+- Video prompts
+- Copyright notices
+- Duplicate photo captions
+- Repeated boilerplate text
+- Read more sections
+- Recommended for you sections
+
+Return the article with original paragraph structure preserved.
+The output should normally retain 95-100% of the article.
+If unsure, KEEP the text.
 `;
 
   const strictInstruction = `
@@ -213,13 +257,13 @@ Article text:\n${deterministicCleanedInput.slice(0, 12000)}
     const originalLength = content.trim().length;
     const precleanLength = deterministicCleanedInput.trim().length;
     const finalLength = finalCleaned.trim().length;
-    const minimumRatio = mode === "strict" ? 0.45 : 0.70;
+    const minimumRatio = mode === "strict" ? 0.45 : 0.80;
 
     // Compare against the rule-cleaned input, not the raw extraction, because raw pages can contain huge menus.
     if (precleanLength > 2000 && finalLength < precleanLength * minimumRatio) {
       return res.status(200).json({
         cleanedArticle: deterministicCleanedInput,
-        warning: `AI cleaning removed too much article content, so rule-based cleaning was used instead. Raw length: ${originalLength}, pre-cleaned length: ${precleanLength}, AI length: ${finalLength}.`
+        warning: `AI cleaning removed too much article content, so the fuller rule-based cleaned article was used instead. Raw length: ${originalLength}, pre-cleaned length: ${precleanLength}, AI length: ${finalLength}.`
       });
     }
 
