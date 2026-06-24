@@ -174,11 +174,13 @@ Important:
 - Keep article wording and paragraph order unchanged.
 - Do not add comments or explanations.
 
-Article text:
-${deterministicCleanedInput.slice(0, 22000)}
+Article text:\n${deterministicCleanedInput.slice(0, 12000)}
 `;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -187,6 +189,7 @@ ${deterministicCleanedInput.slice(0, 22000)}
         "HTTP-Referer": "https://vercel.app",
         "X-Title": "News Article Compiler Cleaner"
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
@@ -195,6 +198,7 @@ ${deterministicCleanedInput.slice(0, 22000)}
     });
 
     const data = await response.json();
+    clearTimeout(timeout);
     if (!response.ok) return res.status(response.status).json({ error: data.error?.message || "OpenRouter request failed." });
 
     const text = data.choices?.[0]?.message?.content || "";
