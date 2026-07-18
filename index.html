@@ -83,7 +83,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 <div class="row"><button onclick="saveArticle()">Save Article to Firestore</button><button class="secondary" onclick="clearForm()">Clear Form</button></div>
 <div id="status" class="status hidden"></div></div>
 
-<div class="card"><h2>Bulk Save Multiple Articles</h2><p>Paste one article URL per line. Duplicate URLs will be skipped automatically. Bulk save will also generate the Less Strict AI-Cleaned Version.</p>
+<div class="card"><h2>Bulk Save Multiple Articles</h2><p>Paste one article URL per line. Duplicate URLs will be skipped automatically. Bulk save will save only the Raw Full Article.</p>
 <textarea id="bulkUrls" placeholder="https://example.com/article-1&#10;https://example.com/article-2"></textarea>
 <div class="row"><button onclick="bulkSaveArticles()">Start Bulk Save</button><button class="secondary" onclick="document.getElementById('bulkUrls').value=''">Clear URLs</button></div>
 <div id="bulkStatus" class="status hidden"></div><div id="bulkLog"></div></div>
@@ -290,28 +290,25 @@ async function bulkSaveArticles(){
    if(!article.publicationDate)throw new Error("No publication date found. Add manually.");
    if(duplicateByUrl(article.url)){skipped++;addBulkLog(`Skipped duplicate after extraction: ${article.url}`,"bulkFail");continue}
 
-   addBulkLog(`Less strict cleaning: ${article.title}`,"bulkWorking");
-   const looseCleaned=await cleanArticleLooseForBulk(article.fullArticle);
-
    await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),{
      title:article.title,
      source:article.source,
      publicationDate:article.publicationDate,
      displayDate:article.publicationDate,
      url:article.url,
-     fullArticle:looseCleaned,
+     fullArticle:article.fullArticle,
      summary:article.summary,
      keywords:article.keywords,
      economicKeywords:article.economicKeywords,
      economicsConcepts:article.economicsConcepts||[],
      fullArticleRaw:article.fullArticle,
-     fullArticleCleanedLoose:looseCleaned,
+     fullArticleCleanedLoose:"",
      fullArticleCleanedStrict:"",
-     articleVersionSaved:"loose",
+     articleVersionSaved:"raw",
      createdAt:new Date().toISOString(),
      updatedAt:new Date().toISOString()
    }),15000,"Firestore save timed out.");
-   success++;addBulkLog(`Saved with Less Strict cleaned version: ${article.title}`,"bulkOk");
+   success++;addBulkLog(`Saved raw version: ${article.title}`,"bulkOk");
   }catch(err){failed++;addBulkLog(`Failed: ${url} — ${err.message}`,"bulkFail")}
   await new Promise(r=>setTimeout(r,700));
  }
