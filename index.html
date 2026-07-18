@@ -189,9 +189,16 @@ async function loadPDF(event){
 }
 
 async function summarizeCore(article){
- const res=await withTimeout(fetch("/api/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:article.url||"",title:article.title||"",source:article.source||"",publicationDate:article.publicationDate||"",content:article.fullArticle||""})}),45000,"AI request took too long.");
- const parsed=await res.json(); if(!res.ok)throw new Error(parsed.error||"AI request failed.");
- return{...article,title:parsed.title||article.title||"",source:parsed.source||article.source||"",publicationDate:parsed.publicationDate||article.publicationDate||"",summary:parsed.summary||"",keywords:Array.isArray(parsed.keywords)?parsed.keywords:[],economicKeywords:Array.isArray(parsed.economicKeywords)?parsed.economicKeywords:[],economicsConcepts:Array.isArray(parsed.economicsConcepts)?parsed.economicsConcepts:[]}
+ for(let attempt=1;attempt<=3;attempt++){
+  try{
+   const res=await withTimeout(fetch("/api/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:article.url||"",title:article.title||"",source:article.source||"",publicationDate:article.publicationDate||"",content:article.fullArticle||""})}),90000,"AI request took too long.");
+   const parsed=await res.json(); if(!res.ok)throw new Error(parsed.error||"AI request failed.");
+   return{...article,title:parsed.title||article.title||"",source:parsed.source||article.source||"",publicationDate:parsed.publicationDate||article.publicationDate||"",summary:parsed.summary||"",keywords:Array.isArray(parsed.keywords)?parsed.keywords:[],economicKeywords:Array.isArray(parsed.economicKeywords)?parsed.economicKeywords:[],economicsConcepts:Array.isArray(parsed.economicsConcepts)?parsed.economicsConcepts:[]}
+  }catch(err){
+   if(attempt===3||err.message!=="AI request took too long.")throw err;
+   await new Promise(r=>setTimeout(r,1500));
+  }
+ }
 }
 
 
