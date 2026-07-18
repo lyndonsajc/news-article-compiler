@@ -53,7 +53,7 @@ ${content.slice(0, 14000)}
         "X-Title": "News Article Compiler"
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+        model: "openrouter/free",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.2
       })
