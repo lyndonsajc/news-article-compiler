@@ -77,9 +77,6 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
   <option value="loose">Save Less Strict Cleaned Version</option>
   <option value="strict">Save Strict Cleaned Version</option>
 </select>
-<button onclick="summarizeWithAI()">Generate Summary + Keywords</button>
-<h3>Summary Section</h3><textarea id="summary" placeholder="AI summary will appear here"></textarea>
-<div class="row"><input id="keywords" placeholder="General keywords, separated by commas"><input id="economicKeywords" placeholder="Economic terms, separated by commas"></div><input id="economicsConcepts" placeholder="Economics concepts, separated by commas">
 <div class="row"><button onclick="saveArticle()">Save Article to Firestore</button><button class="secondary" onclick="clearForm()">Clear Form</button></div>
 <div id="status" class="status hidden"></div></div>
 
@@ -166,7 +163,7 @@ async function fetchReadableUrl(rawUrl){
 async function fetchArticleFromUrl(){
  const rawUrl=document.getElementById("articleUrl").value.trim(); if(!rawUrl){alert("Paste an article URL first.");return}
  try{setStatus("Fetching readable article text..."); const article=await fetchReadableUrl(rawUrl);
- document.getElementById("url").value=article.url;document.getElementById("content").value=article.fullArticle;document.getElementById("title").value=article.title;document.getElementById("source").value=article.source;if(article.publicationDate)document.getElementById("publicationDate").value=article.publicationDate;clearStatus();await summarizeWithAI();}
+ document.getElementById("url").value=article.url;document.getElementById("content").value=article.fullArticle;document.getElementById("title").value=article.title;document.getElementById("source").value=article.source;if(article.publicationDate)document.getElementById("publicationDate").value=article.publicationDate;clearStatus();}
  catch(err){console.error(err);setStatus("Could not fetch article. Try PDF upload or paste text. "+err.message,true)}
 }
 
@@ -184,7 +181,7 @@ async function loadPDF(event){
  const file=event.target.files[0]; if(!file)return;
  try{setStatus("Reading PDF..."); const buffer=await file.arrayBuffer(), pdf=await pdfjsLib.getDocument(new Uint8Array(buffer)).promise; let fullText="";
  for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i), content=await page.getTextContent();fullText+=content.items.map(item=>item.str).join(" ")+"\n\n"}
- document.getElementById("content").value=fullText.trim();document.getElementById("title").value=file.name.replace(/\.pdf$/i,"");document.getElementById("source").value="PDF Upload";document.getElementById("url").value="";clearStatus();await summarizeWithAI();}
+ document.getElementById("content").value=fullText.trim();document.getElementById("title").value=file.name.replace(/\.pdf$/i,"");document.getElementById("source").value="PDF Upload";document.getElementById("url").value="";clearStatus();}
  catch(err){console.error(err);setStatus("PDF reading failed. Try another PDF or paste text.",true)}
 }
 
@@ -249,7 +246,7 @@ async function saveArticle(){
  const strictArticle=(document.getElementById("cleanedStrict")?.value||"").trim();
  const versionChoice=document.getElementById("saveVersion")?.value||"raw";
  const chosenArticle=versionChoice==="strict"?(strictArticle||rawArticle):versionChoice==="loose"?(looseArticle||rawArticle):rawArticle;
- const article={title:document.getElementById("title").value.trim(),source:document.getElementById("source").value.trim(),publicationDate,displayDate:publicationDate,url,fullArticleRaw:rawArticle,fullArticleCleanedLoose:looseArticle,fullArticleCleanedStrict:strictArticle,articleVersionSaved:versionChoice,fullArticle:chosenArticle,summary:document.getElementById("summary").value.trim(),keywords:splitTags("keywords"),economicKeywords:splitTags("economicKeywords"),economicsConcepts:splitTags("economicsConcepts"),updatedAt:new Date().toISOString()};
+ const article={title:document.getElementById("title").value.trim(),source:document.getElementById("source").value.trim(),publicationDate,displayDate:publicationDate,url,fullArticleRaw:rawArticle,fullArticleCleanedLoose:looseArticle,fullArticleCleanedStrict:strictArticle,articleVersionSaved:versionChoice,fullArticle:chosenArticle,summary:"",keywords:[],economicKeywords:[],economicsConcepts:[],updatedAt:new Date().toISOString()};
  if(!article.title||!article.fullArticle){alert("Title and full article text are required.");return}
  try{
   setStatus("Saving article to Firestore...");
@@ -292,8 +289,7 @@ async function bulkSaveArticles(){
  for(let i=0;i<urls.length;i++){const url=urls[i];setBulkStatus(`Processing ${i+1} of ${urls.length}...`);
   if(duplicateByUrl(url)){skipped++;addBulkLog(`Skipped duplicate: ${url}`,"bulkFail");continue}
   addBulkLog(`Working: ${url}`,"bulkWorking");
-  try{let article=await fetchReadableUrl(url); 
-   article=await summarizeCore(article); 
+  try{const article=await fetchReadableUrl(url); 
    if(!article.publicationDate)throw new Error("No publication date found. Add manually.");
    if(duplicateByUrl(article.url)){skipped++;addBulkLog(`Skipped duplicate after extraction: ${article.url}`,"bulkFail");continue}
 
@@ -304,10 +300,10 @@ async function bulkSaveArticles(){
      displayDate:article.publicationDate,
      url:article.url,
      fullArticle:article.fullArticle,
-     summary:article.summary,
-     keywords:article.keywords,
-     economicKeywords:article.economicKeywords,
-     economicsConcepts:article.economicsConcepts||[],
+     summary:"",
+     keywords:[],
+     economicKeywords:[],
+     economicsConcepts:[],
      fullArticleRaw:article.fullArticle,
      fullArticleCleanedLoose:"",
      fullArticleCleanedStrict:"",
@@ -415,7 +411,7 @@ window.setDatePreset=setDatePreset;
 function clearDateRange(){document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";activeDateFilter="";currentPage=1;renderArticles()}
 function clearFilters(){activeDateFilter="";activeKeywordFilter="";activeEconomicKeywordFilter="";activeConceptFilter="";document.getElementById("searchBox").value="";document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";document.getElementById("sourceFilter").value="";currentPage=1;renderArticles()}
 
-function editArticle(id){const a=articlesCache.find(x=>x.id===id); if(!a)return; editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";document.getElementById("summary").value=a.summary||"";document.getElementById("keywords").value=(a.keywords||[]).join(", ");document.getElementById("economicKeywords").value=(a.economicKeywords||[]).join(", ");document.getElementById("economicsConcepts").value=(a.economicsConcepts||[]).join(", ");window.scrollTo({top:0,behavior:"smooth"})}
+function editArticle(id){const a=articlesCache.find(x=>x.id===id); if(!a)return; editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";window.scrollTo({top:0,behavior:"smooth"})}
 async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");await loadArticlesFromFirestore()}catch(err){alert("Delete failed: "+err.message)}}
 
 function downloadDatabase(){const backup={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,totalArticles:articlesCache.length,articles:articlesCache}; const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});downloadBlob(blob,`news-articles-firestore-backup-${new Date().toISOString().slice(0,10)}.json`)}
