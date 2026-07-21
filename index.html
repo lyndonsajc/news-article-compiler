@@ -157,7 +157,13 @@ async function fetchReadableUrl(rawUrl){
  const readableUrl=rawUrl.startsWith("https://")?"https://r.jina.ai/http://"+rawUrl.replace("https://",""):rawUrl.startsWith("http://")?"https://r.jina.ai/http://"+rawUrl.replace("http://",""):"https://r.jina.ai/http://"+rawUrl;
  const res=await withTimeout(fetch(readableUrl),25000,"Article fetching took too long.");
  const text=await res.text(), guessedTitle=text.match(/^Title:\s*(.+)$/m), guessedDate=guessPublicationDate(text), host=new URL(rawUrl).hostname.replace("www.","");
- return{title:guessedTitle?guessedTitle[1].trim():"",source:host,publicationDate:guessedDate,url:rawUrl,fullArticle:cleanArticleText(text)}
+ return{title:guessedTitle?guessedTitle[1].trim():"",source:host,publicationDate:guessedDate||todaySingapore(),url:rawUrl,fullArticle:cleanArticleText(text)}
+}
+
+function todaySingapore(){
+ const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Singapore",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+ return `${values.year}-${values.month}-${values.day}`;
 }
 
 async function fetchArticleFromUrl(){
@@ -290,7 +296,6 @@ async function bulkSaveArticles(){
   if(duplicateByUrl(url)){skipped++;addBulkLog(`Skipped duplicate: ${url}`,"bulkFail");continue}
   addBulkLog(`Working: ${url}`,"bulkWorking");
   try{const article=await fetchReadableUrl(url); 
-   if(!article.publicationDate)throw new Error("No publication date found. Add manually.");
    if(duplicateByUrl(article.url)){skipped++;addBulkLog(`Skipped duplicate after extraction: ${article.url}`,"bulkFail");continue}
 
    await withTimeout(addDoc(collection(db,ARTICLES_COLLECTION),{
