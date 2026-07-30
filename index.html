@@ -135,13 +135,13 @@ if(sessionStorage.getItem("newsCompilerUnlocked")==="yes"){document.getElementBy
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, getDocs, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, getDoc, getDocs, getCountFromServer, query, orderBy, limit, startAfter, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const firebaseConfig={apiKey:"AIzaSyAotyw1bpKRESwzR2b0j19Qn1b81FrI6Bk",authDomain:"news-article-compiler.firebaseapp.com",projectId:"news-article-compiler",storageBucket:"news-article-compiler.firebasestorage.app",messagingSenderId:"1042649880387",appId:"1:1042649880387:web:d5ef710d64f19acdd601f6"};
 const app=initializeApp(firebaseConfig), db=getFirestore(app), ARTICLES_COLLECTION="newsArticles";
 let articlesCache=[],editingId=null,activeDateFilter="",activeKeywordFilter="",activeEconomicKeywordFilter="",activeConceptFilter="",expandedArticleId="",lastSavedArticleId="",selectedArticleIds=new Set();
-let currentPage=1;
+let currentPage=1,totalArticleCount=0,lastPageSnapshot=null,pageCursors=[null],hasNextPage=false;
 const ARTICLES_PER_PAGE=25;
 const LIBRARY_SIZE=500;
 let renderDebounceTimer=null;
@@ -322,11 +322,23 @@ async function bulkSaveArticles(){
  setBulkStatus(`Bulk save completed. Saved: ${success}. Skipped duplicates: ${skipped}. Failed: ${failed}.`); await loadArticlesFromFirestore();
 }
 
-async function loadArticlesFromFirestore(){
- try{setStatus("Loading articles from Firestore..."); let snapshot;
-  try{snapshot=await withTimeout(getDocs(query(collection(db,ARTICLES_COLLECTION),orderBy("publicationDate","desc"))),120000,"Firestore loading timed out.")}
-  catch(e){snapshot=await withTimeout(getDocs(collection(db,ARTICLES_COLLECTION)),120000,"Firestore loading timed out.")}
-  articlesCache=snapshot.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.publicationDate||"").localeCompare(a.publicationDate||"")); clearStatus();renderArticles();
+function compactArticleDoc(d){
+ const data=d.data(), body=data.fullArticle||data.fullArticleRaw||"";
+ return {id:d.id,...data,_charCount:body.length,fullArticle:"",fullArticleRaw:"",fullArticleCleanedLoose:"",fullArticleCleanedStrict:"",_fullLoaded:false};
+}
+async function loadArticlesFromFirestore(page=1){
+ try{
+  setStatus(`Loading article page ${page} from Firestore...`);
+  const countSnap=await withTimeout(getCountFromServer(collection(db,ARTICLES_COLLECTION)),30000,"Firestore count timed out.");totalArticleCount=countSnap.data().count||0;
+  const cursor=page>1?pageCursors[page-1]:null;
+  let q=cursor?query(collection(db,ARTICLES_COLLECTION),orderBy("publicationDate","desc"),startAfter(cursor),limit(ARTICLES_PER_PAGE)):query(collection(db,ARTICLES_COLLECTION),orderBy("publicationDate","desc"),limit(ARTICLES_PER_PAGE));
+  const snapshot=await withTimeout(getDocs(q),30000,"Firestore page loading timed out.");
+  articlesCache=snapshot.docs.map(compactArticleDoc);
+  currentPage=page;
+  lastPageSnapshot=snapshot.docs[snapshot.docs.length-1]||null;
+  if(lastPageSnapshot)pageCursors[page]=lastPageSnapshot;
+  hasNextPage=currentPage*ARTICLES_PER_PAGE<totalArticleCount&&snapshot.docs.length===ARTICLES_PER_PAGE;
+  selectedArticleIds.clear();expandedArticleId="";clearStatus();renderArticles();
  }catch(err){console.error(err);setStatus("Could not load Firestore articles: "+err.message,true)}
 }
 
@@ -350,32 +362,26 @@ function renderArticleDetails(a){
  return `${a.url?`<p><a href="${escapeHtml(a.url)}" target="_blank">Open original article</a></p>`:""}<h4>Summary</h4><div class="summaryBox">${escapeHtml(a.summary||"No summary yet.").replace(/\n/g,"<br>")}</div><h4>General Keywords</h4><div>${(a.keywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economic Terms</h4><div>${(a.economicKeywords||[]).map(k=>`<button class="keywordBtn" onclick="filterByEconomicKeyword('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><h4>Economics Concepts</h4><div>${(a.economicsConcepts||[]).map(k=>`<button class="keywordBtn" onclick="filterByConcept('${escapeAttribute(k)}')">${escapeHtml(k)}</button>`).join("")}</div><details open><summary>Saved Article Version</summary><div class="readable">${escapeHtml(a.fullArticle||a.fullArticleRaw||"")}</div></details><details><summary>Raw Full Article</summary><div class="readable">${escapeHtml(a.fullArticleRaw||a.fullArticle||"")}</div></details>${a.fullArticleCleanedLoose?`<details><summary>Less Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedLoose)}</div></details>`:""}${a.fullArticleCleanedStrict?`<details><summary>Strict AI-Cleaned Version</summary><div class="readable">${escapeHtml(a.fullArticleCleanedStrict)}</div></details>`:""}`;
 }
 
-function renderPagination(filteredLength){
- const totalPages=Math.max(1,Math.ceil(filteredLength/ARTICLES_PER_PAGE));
- if(currentPage>totalPages)currentPage=totalPages;
- if(currentPage<1)currentPage=1;
- const html=`<button class="secondary" onclick="prevPage()" ${currentPage<=1?"disabled":""}>← Previous</button><span class="pageInfo">Page ${currentPage} of ${totalPages} · ${ARTICLES_PER_PAGE} per page</span><button class="secondary" onclick="nextPage()" ${currentPage>=totalPages?"disabled":""}>Next →</button>`;
- ["paginationTop","paginationBottom"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=filteredLength>ARTICLES_PER_PAGE?html:""});
+function renderPagination(){
+ const totalPages=Math.max(1,Math.ceil(totalArticleCount/ARTICLES_PER_PAGE));
+ const html=`<button class="secondary" onclick="prevPage()" ${currentPage<=1?"disabled":""}>← Previous</button><span class="pageInfo">Page ${currentPage} of ${totalPages} · ${ARTICLES_PER_PAGE} per page</span><button class="secondary" onclick="nextPage()" ${!hasNextPage?"disabled":""}>Next →</button>`;
+ ["paginationTop","paginationBottom"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=totalArticleCount>ARTICLES_PER_PAGE?html:""});
 }
-function nextPage(){currentPage++;renderArticles();window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
-function prevPage(){currentPage--;renderArticles();window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
-function setPage(p){currentPage=p;renderArticles()}
+async function nextPage(){if(!hasNextPage)return;await loadArticlesFromFirestore(currentPage+1);window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
+async function prevPage(){if(currentPage<=1)return;await loadArticlesFromFirestore(currentPage-1);window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
+function setPage(p){return loadArticlesFromFirestore(p)}
 
 function renderArticles(){
  renderQuickButtons(articlesCache);renderSourceFilter(articlesCache);renderStats();
- const filtered=getFilteredArticles();
- const totalPages=Math.max(1,Math.ceil(filtered.length/ARTICLES_PER_PAGE));
- if(currentPage>totalPages)currentPage=totalPages;
- const start=(currentPage-1)*ARTICLES_PER_PAGE;
- const pageItems=filtered.slice(start,start+ARTICLES_PER_PAGE);
- document.getElementById("articleCount").textContent=`(${filtered.length} filtered / ${articlesCache.length} total · showing ${pageItems.length})`;
- renderPagination(filtered.length);
- document.getElementById("articleList").innerHTML=pageItems.length?pageItems.map(a=>`<div id="article-${escapeAttribute(a.id)}" class="compactArticle ${selectedArticleIds.has(a.id)?"selectedForDelete":""} ${expandedArticleId===a.id?"lazyOpen":""} ${lastSavedArticleId===a.id?"returnHighlight":""}"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><input class="compactSelect" type="checkbox" ${selectedArticleIds.has(a.id)?"checked":""} aria-label="Select article for deletion" onclick="event.stopPropagation();toggleArticleSelection('${a.id}',this.checked)"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${(a.fullArticle||a.fullArticleRaw||"").length.toLocaleString()} chars</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div>${expandedArticleId===a.id?`<div class="articleDetails">${renderArticleDetails(a)}</div>`:""}</div>`).join(""):"<p>No articles found.</p>";
+ const pageItems=getFilteredArticles();
+ document.getElementById("articleCount").textContent=`(${totalArticleCount.toLocaleString()} total · ${pageItems.length} shown on this page)`;
+ renderPagination();
+ document.getElementById("articleList").innerHTML=pageItems.length?pageItems.map(a=>`<div id="article-${escapeAttribute(a.id)}" class="compactArticle ${selectedArticleIds.has(a.id)?"selectedForDelete":""} ${expandedArticleId===a.id?"lazyOpen":""} ${lastSavedArticleId===a.id?"returnHighlight":""}"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><input class="compactSelect" type="checkbox" ${selectedArticleIds.has(a.id)?"checked":""} aria-label="Select article for deletion" onclick="event.stopPropagation();toggleArticleSelection('${a.id}',this.checked)"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${Number(a._charCount||0).toLocaleString()} chars</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div>${expandedArticleId===a.id?`<div class="articleDetails">${a._fullLoaded?renderArticleDetails(a):"Loading full article…"}</div>`:""}</div>`).join(""):"<p>No articles found on this page.</p>";
  updateDeleteSelectedButton();
 }
 
 
-function renderStats(){document.getElementById("statTotal").textContent=articlesCache.length;document.getElementById("statSources").textContent=new Set(articlesCache.map(a=>a.source).filter(Boolean)).size;document.getElementById("statGeneralKeywords").textContent=new Set(articlesCache.flatMap(a=>a.keywords||[]).filter(Boolean)).size;document.getElementById("statEconomicKeywords").textContent=new Set(articlesCache.flatMap(a=>a.economicKeywords||[]).filter(Boolean)).size;document.getElementById("statConcepts").textContent=new Set(articlesCache.flatMap(a=>a.economicsConcepts||[]).filter(Boolean)).size;const lib=document.getElementById("libraryStatus");if(lib){const libs=Math.max(1,Math.ceil(articlesCache.length/LIBRARY_SIZE));lib.textContent=`Libraries: ${libs} · Articles: ${articlesCache.length.toLocaleString()} · ${LIBRARY_SIZE} per library`;}}
+function renderStats(){document.getElementById("statTotal").textContent=totalArticleCount;document.getElementById("statSources").textContent=new Set(articlesCache.map(a=>a.source).filter(Boolean)).size;document.getElementById("statGeneralKeywords").textContent=new Set(articlesCache.flatMap(a=>a.keywords||[]).filter(Boolean)).size;document.getElementById("statEconomicKeywords").textContent=new Set(articlesCache.flatMap(a=>a.economicKeywords||[]).filter(Boolean)).size;document.getElementById("statConcepts").textContent=new Set(articlesCache.flatMap(a=>a.economicsConcepts||[]).filter(Boolean)).size;const lib=document.getElementById("libraryStatus");if(lib){const libs=Math.max(1,Math.ceil(totalArticleCount/LIBRARY_SIZE));lib.textContent=`Libraries: ${libs} · Articles: ${totalArticleCount.toLocaleString()} · ${LIBRARY_SIZE} per library`;}}
 function renderSourceFilter(articles){const select=document.getElementById("sourceFilter"), current=select.value, sources=[...new Set(articles.map(a=>a.source).filter(Boolean))].sort((a,b)=>a.localeCompare(b));select.innerHTML=`<option value="">All Sources</option>`+sources.map(s=>`<option value="${escapeAttribute(s)}">${escapeHtml(s)}</option>`).join("");select.value=current}
 function renderQuickButtons(articles){
  const keywordBox=document.getElementById("keywordButtons"), econBox=document.getElementById("economicKeywordButtons"), conceptBox=document.getElementById("economicsConceptButtons");
@@ -397,7 +403,7 @@ function goToSavedArticle(id){
  setTimeout(()=>{const row=document.getElementById("article-"+id);if(row){row.scrollIntoView({behavior:"smooth",block:"center"})}},80);
 }
 
-function toggleArticle(id){expandedArticleId=expandedArticleId===id?"":id;renderArticles()}
+async function toggleArticle(id){if(expandedArticleId===id){expandedArticleId="";renderArticles();return}expandedArticleId=id;renderArticles();const i=articlesCache.findIndex(a=>a.id===id);if(i<0||articlesCache[i]._fullLoaded)return;try{const snap=await withTimeout(getDoc(doc(db,ARTICLES_COLLECTION,id)),30000,"Article loading timed out.");if(snap.exists()){articlesCache[i]={id:snap.id,...snap.data(),_charCount:(snap.data().fullArticle||snap.data().fullArticleRaw||"").length,_fullLoaded:true};renderArticles()}}catch(err){setStatus("Could not load article details: "+err.message,true)}}
 function filterByDate(date){activeDateFilter=date;currentPage=1;renderArticles()} function filterByKeyword(k){activeKeywordFilter=k;currentPage=1;renderArticles()} function filterByEconomicKeyword(k){activeEconomicKeywordFilter=k;currentPage=1;renderArticles()} function filterByConcept(k){activeConceptFilter=k;currentPage=1;renderArticles()}
 function setDatePreset(type){
  const today=new Date();
@@ -418,11 +424,11 @@ function clearFilters(){activeDateFilter="";activeKeywordFilter="";activeEconomi
 
 function updateDeleteSelectedButton(){const btn=document.getElementById("deleteSelectedButton");if(!btn)return;btn.textContent=`Delete Selected (${selectedArticleIds.size})`;btn.disabled=selectedArticleIds.size===0}
 function toggleArticleSelection(id,checked){if(checked)selectedArticleIds.add(id);else selectedArticleIds.delete(id);updateDeleteSelectedButton();const row=document.getElementById("article-"+id);if(row)row.classList.toggle("selectedForDelete",checked)}
-function toggleSelectCurrentPage(){const filtered=getFilteredArticles(),start=(currentPage-1)*ARTICLES_PER_PAGE,pageItems=filtered.slice(start,start+ARTICLES_PER_PAGE);if(!pageItems.length)return;const allSelected=pageItems.every(a=>selectedArticleIds.has(a.id));pageItems.forEach(a=>allSelected?selectedArticleIds.delete(a.id):selectedArticleIds.add(a.id));renderArticles()}
-async function deleteSelectedArticles(){const ids=[...selectedArticleIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected article(s) from Firestore? This cannot be undone.`))return;try{setStatus(`Deleting ${ids.length} selected article(s)...`);for(let i=0;i<ids.length;i+=450){const batch=writeBatch(db);ids.slice(i,i+450).forEach(id=>batch.delete(doc(db,ARTICLES_COLLECTION,id)));await withTimeout(batch.commit(),120000,"Firestore multiple delete timed out.")}selectedArticleIds.clear();await loadArticlesFromFirestore();setStatus(`${ids.length} article(s) deleted successfully.`);setTimeout(clearStatus,2500)}catch(err){console.error(err);setStatus("Multiple delete failed: "+err.message,true)}}
+function toggleSelectCurrentPage(){const pageItems=getFilteredArticles();if(!pageItems.length)return;const allSelected=pageItems.every(a=>selectedArticleIds.has(a.id));pageItems.forEach(a=>allSelected?selectedArticleIds.delete(a.id):selectedArticleIds.add(a.id));renderArticles()}
+async function deleteSelectedArticles(){const ids=[...selectedArticleIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected article(s) from Firestore? This cannot be undone.`))return;try{setStatus(`Deleting ${ids.length} selected article(s)...`);for(let i=0;i<ids.length;i+=450){const batch=writeBatch(db);ids.slice(i,i+450).forEach(id=>batch.delete(doc(db,ARTICLES_COLLECTION,id)));await withTimeout(batch.commit(),120000,"Firestore multiple delete timed out.")}selectedArticleIds.clear();totalArticleCount=Math.max(0,totalArticleCount-ids.length);pageCursors=pageCursors.slice(0,currentPage);await loadArticlesFromFirestore(currentPage);setStatus(`${ids.length} article(s) deleted successfully.`);setTimeout(clearStatus,2500)}catch(err){console.error(err);setStatus("Multiple delete failed: "+err.message,true)}}
 
-function editArticle(id){const a=articlesCache.find(x=>x.id===id); if(!a)return; editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";window.scrollTo({top:0,behavior:"smooth"})}
-async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");await loadArticlesFromFirestore()}catch(err){alert("Delete failed: "+err.message)}}
+async function editArticle(id){try{setStatus("Loading full article...");const snap=await withTimeout(getDoc(doc(db,ARTICLES_COLLECTION,id)),30000,"Article loading timed out.");if(!snap.exists())throw new Error("Article no longer exists.");const a={id:snap.id,...snap.data()};editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";clearStatus();window.scrollTo({top:0,behavior:"smooth"})}catch(err){setStatus("Could not load article: "+err.message,true)}}
+async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");totalArticleCount=Math.max(0,totalArticleCount-1);pageCursors=pageCursors.slice(0,currentPage);await loadArticlesFromFirestore(currentPage)}catch(err){alert("Delete failed: "+err.message)}}
 
 function downloadDatabase(){const backup={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,totalArticles:articlesCache.length,articles:articlesCache}; const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});downloadBlob(blob,`news-articles-firestore-backup-${new Date().toISOString().slice(0,10)}.json`)}
 function downloadDatabaseLibraries(){const articles=getFilteredArticles();if(!articles.length){alert("No articles to export.");return}const totalLibraries=Math.ceil(articles.length/LIBRARY_SIZE);if(!confirm(`Download ${totalLibraries} JSON library file(s)? Each library has up to ${LIBRARY_SIZE} articles.`))return;for(let i=0;i<totalLibraries;i++){const chunk=articles.slice(i*LIBRARY_SIZE,(i+1)*LIBRARY_SIZE);const payload={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,libraryNumber:i+1,totalLibraries,totalArticles:articles.length,articles:chunk};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});setTimeout(()=>downloadBlob(blob,`articles_${String(i+1).padStart(4,"0")}.json`),i*250)}}
