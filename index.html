@@ -161,7 +161,7 @@ async function fetchReadableUrl(rawUrl){
  const readableUrl=rawUrl.startsWith("https://")?"https://r.jina.ai/http://"+rawUrl.replace("https://",""):rawUrl.startsWith("http://")?"https://r.jina.ai/http://"+rawUrl.replace("http://",""):"https://r.jina.ai/http://"+rawUrl;
  const res=await withTimeout(fetch(readableUrl),25000,"Article fetching took too long.");
  const text=await res.text(), guessedTitle=text.match(/^Title:\s*(.+)$/m), host=new URL(rawUrl).hostname.replace("www.","");
- let guessedDate=guessPublicationDate(text);
+ let guessedDate=extractExplicitPublishedTime(text)||guessPublicationDate(text);
  if(!guessedDate){
   try{
    const dateRes=await withTimeout(fetch("/api/extractDate?url="+encodeURIComponent(rawUrl)),15000,"Publication date lookup took too long.");
@@ -185,22 +185,23 @@ function normaliseDateParts(year,month,day){
  if(y<2000||y>2100||m<1||m>12||d<1||d>31)return "";
  return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
+function extractExplicitPublishedTime(text){
+ const raw=String(text||"").replace(/\u00a0/g," ");
+ const m=raw.match(/Published\s*Time\s*:\s*(20\d{2})\s*[-\/]\s*(0?[1-9]|1[0-2])\s*[-\/]\s*(0?[1-9]|[12]\d|3[01])/i);
+ return m?normaliseDateParts(m[1],m[2],m[3]):"";
+}
 function guessPublicationDate(text){
  const raw=String(text||"").replace(/\u00a0/g," ");
  const months={jan:"01",january:"01",feb:"02",february:"02",mar:"03",march:"03",apr:"04",april:"04",may:"05",jun:"06",june:"06",jul:"07",july:"07",aug:"08",august:"08",sep:"09",sept:"09",september:"09",oct:"10",october:"10",nov:"11",november:"11",dec:"12",december:"12"};
- // Highest priority: the article extractor's explicit Published Time line.
- // Allow whitespace/newlines around the hyphens so wrapped timestamps still parse correctly.
- const publishedTime=raw.match(/Published\s*Time\s*:\s*(20\d{2})\s*-\s*(0?[1-9]|1[0-2])\s*-\s*(0?[1-9]|[12]\d|3[01])/i);
- if(publishedTime)return normaliseDateParts(publishedTime[1],publishedTime[2],publishedTime[3]);
  const patterns=[
-  /(?:Published|Publication\s+Date|datePublished|article:published_time|og:published_time)["'\s:=\\/]*?(20\d{2})[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])/i,
+  /(?:Published(?:\s+Time)?|Publication\s+Date|datePublished|article:published_time|og:published_time)["'\s:=\\/]*?(20\d{2})\s*[-\/]\s*(0?[1-9]|1[0-2])\s*[-\/]\s*(0?[1-9]|[12]\d|3[01])/i,
   /(?:Published|Publication\s+Date|Updated)\s*(?:on\s*)?(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?[,]?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})/i,
   /(?:Published|Publication\s+Date|Updated)\s*(?:on\s*)?(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?[,]?\s+(20\d{2})/i
  ];
  let m=raw.match(patterns[0]); if(m)return normaliseDateParts(m[1],m[2],m[3]);
  m=raw.match(patterns[1]); if(m)return normaliseDateParts(m[3],months[m[1].toLowerCase().replace(".","")],m[2]);
  m=raw.match(patterns[2]); if(m)return normaliseDateParts(m[3],months[m[2].toLowerCase().replace(".","")],m[1]);
- const iso=raw.match(/\b(20\d{2})[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])(?:[T\s]|\b)/); if(iso)return normaliseDateParts(iso[1],iso[2],iso[3]);
+ const iso=raw.match(/\b(20\d{2})\s*[-\/]\s*(0?[1-9]|1[0-2])\s*[-\/]\s*(0?[1-9]|[12]\d|3[01])(?:[T\s]|\b)/); if(iso)return normaliseDateParts(iso[1],iso[2],iso[3]);
  const monthFirst=raw.match(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?[,]?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})\b/i);
  if(monthFirst)return normaliseDateParts(monthFirst[3],months[monthFirst[1].toLowerCase().replace(".","")],monthFirst[2]);
  const dayFirst=raw.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?[,]?\s+(20\d{2})\b/i);
