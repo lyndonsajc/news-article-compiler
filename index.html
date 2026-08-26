@@ -188,8 +188,12 @@ function normaliseDateParts(year,month,day){
 function guessPublicationDate(text){
  const raw=String(text||"").replace(/\u00a0/g," ");
  const months={jan:"01",january:"01",feb:"02",february:"02",mar:"03",march:"03",apr:"04",april:"04",may:"05",jun:"06",june:"06",jul:"07",july:"07",aug:"08",august:"08",sep:"09",sept:"09",september:"09",oct:"10",october:"10",nov:"11",november:"11",dec:"12",december:"12"};
+ // Highest priority: the article extractor's explicit Published Time line.
+ // Allow whitespace/newlines around the hyphens so wrapped timestamps still parse correctly.
+ const publishedTime=raw.match(/Published\s*Time\s*:\s*(20\d{2})\s*-\s*(0?[1-9]|1[0-2])\s*-\s*(0?[1-9]|[12]\d|3[01])/i);
+ if(publishedTime)return normaliseDateParts(publishedTime[1],publishedTime[2],publishedTime[3]);
  const patterns=[
-  /(?:Published(?:\s+Time)?|Publication\s+Date|datePublished|article:published_time|og:published_time)["'\s:=\\/]*?(20\d{2})[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])/i,
+  /(?:Published|Publication\s+Date|datePublished|article:published_time|og:published_time)["'\s:=\\/]*?(20\d{2})[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])/i,
   /(?:Published|Publication\s+Date|Updated)\s*(?:on\s*)?(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?[,]?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})/i,
   /(?:Published|Publication\s+Date|Updated)\s*(?:on\s*)?(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?[,]?\s+(20\d{2})/i
  ];
@@ -218,7 +222,7 @@ async function summarizeCore(article){
   try{
    const res=await withTimeout(fetch("/api/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:article.url||"",title:article.title||"",source:article.source||"",publicationDate:article.publicationDate||"",content:article.fullArticle||""})}),90000,"AI request took too long.");
    const parsed=await res.json(); if(!res.ok)throw new Error(parsed.error||"AI request failed.");
-   return{...article,title:parsed.title||article.title||"",source:parsed.source||article.source||"",publicationDate:parsed.publicationDate||article.publicationDate||"",summary:parsed.summary||"",keywords:Array.isArray(parsed.keywords)?parsed.keywords:[],economicKeywords:Array.isArray(parsed.economicKeywords)?parsed.economicKeywords:[],economicsConcepts:Array.isArray(parsed.economicsConcepts)?parsed.economicsConcepts:[]}
+   return{...article,title:parsed.title||article.title||"",source:parsed.source||article.source||"",publicationDate:article.publicationDate||parsed.publicationDate||"",summary:parsed.summary||"",keywords:Array.isArray(parsed.keywords)?parsed.keywords:[],economicKeywords:Array.isArray(parsed.economicKeywords)?parsed.economicKeywords:[],economicsConcepts:Array.isArray(parsed.economicsConcepts)?parsed.economicsConcepts:[]}
   }catch(err){
    if(attempt===3||err.message!=="AI request took too long.")throw err;
    await new Promise(r=>setTimeout(r,1500));
