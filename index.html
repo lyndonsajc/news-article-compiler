@@ -88,7 +88,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
 <div id="bulkStatus" class="status hidden"></div><div id="bulkLog"></div></div>
 
 <div class="card"><h2>Display & Search</h2>
-<input id="searchBox" placeholder="Search title, source, summary, article text, general keywords or economic terms" oninput="debouncedRenderArticles()">
+<div class="row"><input id="searchBox" placeholder="Search all saved articles" onkeydown="if(event.key==='Enter') searchAllArticles()"><button onclick="searchAllArticles()">Search All Articles</button><button class="secondary" onclick="clearGlobalSearch()">Clear Search</button></div>
 <h3>Publication Date Range</h3>
 <div class="row3">
   <input id="dateFrom" type="date" onchange="currentPage=1;renderArticles()" title="From publication date">
@@ -108,19 +108,9 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
   <option value="">All Sources</option>
 </select>
 
-<h3>Quick Search by General Keywords</h3>
-<button class="secondary" onclick="toggleKeywordPanel('keywordButtons')">Show / Hide General Keywords</button>
-<div id="keywordButtons" class="scrollKeywords hidden"></div>
-
-<h3>Quick Search by Economic Terms</h3>
-<button class="secondary" onclick="toggleKeywordPanel('economicKeywordButtons')">Show / Hide Economic Terms</button>
-<div id="economicKeywordButtons" class="scrollKeywords hidden"></div>
-<h3>Quick Search by Economics Concepts</h3>
-<button class="secondary" onclick="toggleKeywordPanel('economicsConceptButtons')">Show / Hide Economics Concepts</button>
-<div id="economicsConceptButtons" class="scrollKeywords hidden"></div>
 <div class="topbar"><button class="secondary" onclick="clearFilters()">Show All Articles</button><button class="secondary" onclick="downloadDatabase()">Download JSON</button><button class="secondary" onclick="downloadDatabaseLibraries()">Download JSON Libraries</button><button class="green" onclick="downloadExcel()">Download Excel</button><button class="green" onclick="downloadWord()">Download Word</button><button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button></div>
 <input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)">
-<p class="warning">Compact display: click an article row to expand. Date range and preset buttons use publication date. Keyword areas are scrollable.</p></div>
+<p class="warning">Compact display: click an article row to expand. Search All Articles searches the full Firestore collection, not only the current page. Date range and preset buttons use publication date.</p></div>
 
 <div class="card"><h2>Saved Articles <span id="articleCount"></span></h2>
 <div class="topbar" id="multiDeleteBar"><button class="secondary" onclick="toggleSelectCurrentPage()">Select / Unselect Current Page</button><button class="danger" id="deleteSelectedButton" onclick="deleteSelectedArticles()" disabled>Delete Selected (0)</button></div>
@@ -142,11 +132,13 @@ const firebaseConfig={apiKey:"AIzaSyAotyw1bpKRESwzR2b0j19Qn1b81FrI6Bk",authDomai
 const app=initializeApp(firebaseConfig), db=getFirestore(app), ARTICLES_COLLECTION="newsArticles";
 let articlesCache=[],editingId=null,activeDateFilter="",activeKeywordFilter="",activeEconomicKeywordFilter="",activeConceptFilter="",expandedArticleId="",lastSavedArticleId="",selectedArticleIds=new Set();
 let currentPage=1,totalArticleCount=0,lastPageSnapshot=null,pageCursors=[null],hasNextPage=false;
+let globalSearchActive=false,globalSearchQuery="",globalSearchResults=[];
 const ARTICLES_PER_PAGE=25;
+const SEARCH_BATCH_SIZE=200;
 const LIBRARY_SIZE=500;
 let renderDebounceTimer=null;
 
-Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,debouncedRenderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,deleteSelectedArticles,toggleArticleSelection,toggleSelectCurrentPage,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle,nextPage,prevPage,setPage,toggleKeywordPanel,downloadDatabaseLibraries});
+Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,debouncedRenderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,deleteSelectedArticles,toggleArticleSelection,toggleSelectCurrentPage,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle,nextPage,prevPage,setPage,toggleKeywordPanel,downloadDatabaseLibraries,searchAllArticles,clearGlobalSearch});
 if(sessionStorage.getItem("newsCompilerUnlocked")==="yes")loadArticlesFromFirestore();
 window.addEventListener("newsCompilerUnlocked",loadArticlesFromFirestore);
 
@@ -372,12 +364,51 @@ async function loadArticlesFromFirestore(page=1){
 }
 
 function clearForm(){["articleUrl","title","source","publicationDate","url","content","cleanedLoose","cleanedStrict","summary","keywords","economicKeywords","economicsConcepts"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=""});editingId=null;clearStatus()}
+
+function searchDocMatches(data,q){
+ const haystack=[data.title,data.source,data.publicationDate,data.url,data.summary,(data.keywords||[]).join(" "),(data.economicKeywords||[]).join(" "),(data.economicsConcepts||[]).join(" "),data.fullArticle,data.fullArticleRaw,data.fullArticleCleanedLoose,data.fullArticleCleanedStrict].join(" ").toLowerCase();
+ return haystack.includes(q);
+}
+async function searchAllArticles(){
+ const q=(document.getElementById("searchBox").value||"").toLowerCase().trim();
+ if(!q){clearGlobalSearch();return}
+ try{
+  setStatus(`Searching all ${totalArticleCount.toLocaleString()} articles for “${q}”…`);
+  const matches=[];
+  let cursor=null,scanned=0;
+  while(true){
+   const sq=cursor?query(collection(db,ARTICLES_COLLECTION),startAfter(cursor),limit(SEARCH_BATCH_SIZE)):query(collection(db,ARTICLES_COLLECTION),limit(SEARCH_BATCH_SIZE));
+   const snap=await withTimeout(getDocs(sq),60000,"Firestore search batch timed out.");
+   if(snap.empty)break;
+   for(const d of snap.docs){const data=d.data();if(searchDocMatches(data,q))matches.push(compactArticleDoc(d));}
+   scanned+=snap.docs.length;
+   setStatus(`Searching… ${scanned.toLocaleString()} of ${totalArticleCount.toLocaleString()} checked · ${matches.length.toLocaleString()} matches`);
+   cursor=snap.docs[snap.docs.length-1];
+   if(snap.docs.length<SEARCH_BATCH_SIZE)break;
+  }
+  globalSearchActive=true;globalSearchQuery=q;globalSearchResults=matches;currentPage=1;selectedArticleIds.clear();expandedArticleId="";clearStatus();renderArticles();
+ }catch(err){console.error(err);setStatus("Search failed: "+err.message,true)}
+}
+function clearGlobalSearch(){
+ globalSearchActive=false;globalSearchQuery="";globalSearchResults=[];currentPage=1;
+ const box=document.getElementById("searchBox");if(box)box.value="";
+ renderArticles();
+}
+function getSearchFilteredResults(){
+ const dateFrom=document.getElementById("dateFrom").value,dateTo=document.getElementById("dateTo").value,sourceFilter=document.getElementById("sourceFilter").value;
+ return globalSearchResults.filter(a=>{const d=a.publicationDate||"";return (!dateFrom||(d&&d>=dateFrom))&&(!dateTo||(d&&d<=dateTo))&&(!sourceFilter||a.source===sourceFilter)});
+}
 function debouncedRenderArticles(){
  clearTimeout(renderDebounceTimer);
  renderDebounceTimer=setTimeout(()=>{currentPage=1;renderArticles()},350);
 }
 
 function getFilteredArticles(){
+ if(globalSearchActive){
+  const filtered=getSearchFilteredResults();
+  const start=(currentPage-1)*ARTICLES_PER_PAGE;
+  return filtered.slice(start,start+ARTICLES_PER_PAGE);
+ }
  const q=(document.getElementById("searchBox").value||"").toLowerCase().trim(), dateFrom=document.getElementById("dateFrom").value, dateTo=document.getElementById("dateTo").value, sourceFilter=document.getElementById("sourceFilter").value;
  return articlesCache.filter(a=>{
   const quickHaystack=[a.title,a.source,a.publicationDate,a.url,a.summary,(a.keywords||[]).join(" "),(a.economicKeywords||[]).join(" "),(a.economicsConcepts||[]).join(" ")].join(" ").toLowerCase();
@@ -392,18 +423,29 @@ function renderArticleDetails(a){
 }
 
 function renderPagination(){
- const totalPages=Math.max(1,Math.ceil(totalArticleCount/ARTICLES_PER_PAGE));
- const html=`<button class="secondary" onclick="prevPage()" ${currentPage<=1?"disabled":""}>← Previous</button><span class="pageInfo">Page ${currentPage} of ${totalPages} · ${ARTICLES_PER_PAGE} per page</span><button class="secondary" onclick="nextPage()" ${!hasNextPage?"disabled":""}>Next →</button>`;
- ["paginationTop","paginationBottom"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=totalArticleCount>ARTICLES_PER_PAGE?html:""});
+ const displayTotal=globalSearchActive?getSearchFilteredResults().length:totalArticleCount;
+ const totalPages=Math.max(1,Math.ceil(displayTotal/ARTICLES_PER_PAGE));
+ const canNext=globalSearchActive?currentPage<totalPages:hasNextPage;
+ const html=`<button class="secondary" onclick="prevPage()" ${currentPage<=1?"disabled":""}>← Previous</button><span class="pageInfo">Page ${currentPage} of ${totalPages} · ${ARTICLES_PER_PAGE} per page</span><button class="secondary" onclick="nextPage()" ${!canNext?"disabled":""}>Next →</button>`;
+ ["paginationTop","paginationBottom"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=displayTotal>ARTICLES_PER_PAGE?html:""});
 }
-async function nextPage(){if(!hasNextPage)return;await loadArticlesFromFirestore(currentPage+1);window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
-async function prevPage(){if(currentPage<=1)return;await loadArticlesFromFirestore(currentPage-1);window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"})}
-function setPage(p){return loadArticlesFromFirestore(p)}
+async function nextPage(){
+ if(globalSearchActive){const totalPages=Math.max(1,Math.ceil(getSearchFilteredResults().length/ARTICLES_PER_PAGE));if(currentPage>=totalPages)return;currentPage++;renderArticles();}
+ else{if(!hasNextPage)return;await loadArticlesFromFirestore(currentPage+1);}
+ window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"});
+}
+async function prevPage(){
+ if(currentPage<=1)return;
+ if(globalSearchActive){currentPage--;renderArticles();}else await loadArticlesFromFirestore(currentPage-1);
+ window.scrollTo({top:document.getElementById("articleList").offsetTop-80,behavior:"smooth"});
+}
+function setPage(p){if(globalSearchActive){currentPage=p;renderArticles();return}return loadArticlesFromFirestore(p)}
 
 function renderArticles(){
- renderQuickButtons(articlesCache);renderSourceFilter(articlesCache);renderStats();
+ renderSourceFilter(globalSearchActive?globalSearchResults:articlesCache);renderStats();
  const pageItems=getFilteredArticles();
- document.getElementById("articleCount").textContent=`(${totalArticleCount.toLocaleString()} total · ${pageItems.length} shown on this page)`;
+ const searchCount=globalSearchActive?getSearchFilteredResults().length:null;
+ document.getElementById("articleCount").textContent=globalSearchActive?`(${totalArticleCount.toLocaleString()} total · ${searchCount.toLocaleString()} search result${searchCount===1?"":"s"} · ${pageItems.length} shown)`:`(${totalArticleCount.toLocaleString()} total · ${pageItems.length} shown on this page)`;
  renderPagination();
  document.getElementById("articleList").innerHTML=pageItems.length?pageItems.map(a=>`<div id="article-${escapeAttribute(a.id)}" class="compactArticle ${selectedArticleIds.has(a.id)?"selectedForDelete":""} ${expandedArticleId===a.id?"lazyOpen":""} ${lastSavedArticleId===a.id?"returnHighlight":""}"><div class="compactHeader" onclick="toggleArticle('${a.id}')"><input class="compactSelect" type="checkbox" ${selectedArticleIds.has(a.id)?"checked":""} aria-label="Select article for deletion" onclick="event.stopPropagation();toggleArticleSelection('${a.id}',this.checked)"><div><div class="compactTitle">${escapeHtml(a.title)}</div><div class="compactMeta">${escapeHtml(a.source||"Unknown source")}</div></div><div class="compactMeta">${escapeHtml(a.publicationDate||"No date")}</div><div class="compactMeta">${Number(a._charCount||0).toLocaleString()} chars</div><div class="compactActions" onclick="event.stopPropagation()"><button onclick="editArticle('${a.id}')">Edit</button><button class="danger" onclick="deleteArticle('${a.id}')">Delete</button></div></div>${expandedArticleId===a.id?`<div class="articleDetails">${a._fullLoaded?renderArticleDetails(a):"Loading full article…"}</div>`:""}</div>`).join(""):"<p>No articles found on this page.</p>";
  updateDeleteSelectedButton();
@@ -432,7 +474,7 @@ function goToSavedArticle(id){
  setTimeout(()=>{const row=document.getElementById("article-"+id);if(row){row.scrollIntoView({behavior:"smooth",block:"center"})}},80);
 }
 
-async function toggleArticle(id){if(expandedArticleId===id){expandedArticleId="";renderArticles();return}expandedArticleId=id;renderArticles();const i=articlesCache.findIndex(a=>a.id===id);if(i<0||articlesCache[i]._fullLoaded)return;try{const snap=await withTimeout(getDoc(doc(db,ARTICLES_COLLECTION,id)),30000,"Article loading timed out.");if(snap.exists()){articlesCache[i]={id:snap.id,...snap.data(),_charCount:(snap.data().fullArticle||snap.data().fullArticleRaw||"").length,_fullLoaded:true};renderArticles()}}catch(err){setStatus("Could not load article details: "+err.message,true)}}
+async function toggleArticle(id){if(expandedArticleId===id){expandedArticleId="";renderArticles();return}expandedArticleId=id;renderArticles();const store=globalSearchActive?globalSearchResults:articlesCache;const i=store.findIndex(a=>a.id===id);if(i<0||store[i]._fullLoaded)return;try{const snap=await withTimeout(getDoc(doc(db,ARTICLES_COLLECTION,id)),30000,"Article loading timed out.");if(snap.exists()){store[i]={id:snap.id,...snap.data(),_charCount:(snap.data().fullArticle||snap.data().fullArticleRaw||"").length,_fullLoaded:true};renderArticles()}}catch(err){setStatus("Could not load article details: "+err.message,true)}}
 function filterByDate(date){activeDateFilter=date;currentPage=1;renderArticles()} function filterByKeyword(k){activeKeywordFilter=k;currentPage=1;renderArticles()} function filterByEconomicKeyword(k){activeEconomicKeywordFilter=k;currentPage=1;renderArticles()} function filterByConcept(k){activeConceptFilter=k;currentPage=1;renderArticles()}
 function setDatePreset(type){
  const today=new Date();
@@ -449,15 +491,15 @@ function setDatePreset(type){
 }
 window.setDatePreset=setDatePreset;
 function clearDateRange(){document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";activeDateFilter="";currentPage=1;renderArticles()}
-function clearFilters(){activeDateFilter="";activeKeywordFilter="";activeEconomicKeywordFilter="";activeConceptFilter="";document.getElementById("searchBox").value="";document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";document.getElementById("sourceFilter").value="";currentPage=1;renderArticles()}
+function clearFilters(){activeDateFilter="";activeKeywordFilter="";activeEconomicKeywordFilter="";activeConceptFilter="";globalSearchActive=false;globalSearchQuery="";globalSearchResults=[];document.getElementById("searchBox").value="";document.getElementById("dateFrom").value="";document.getElementById("dateTo").value="";document.getElementById("sourceFilter").value="";currentPage=1;renderArticles()}
 
 function updateDeleteSelectedButton(){const btn=document.getElementById("deleteSelectedButton");if(!btn)return;btn.textContent=`Delete Selected (${selectedArticleIds.size})`;btn.disabled=selectedArticleIds.size===0}
 function toggleArticleSelection(id,checked){if(checked)selectedArticleIds.add(id);else selectedArticleIds.delete(id);updateDeleteSelectedButton();const row=document.getElementById("article-"+id);if(row)row.classList.toggle("selectedForDelete",checked)}
 function toggleSelectCurrentPage(){const pageItems=getFilteredArticles();if(!pageItems.length)return;const allSelected=pageItems.every(a=>selectedArticleIds.has(a.id));pageItems.forEach(a=>allSelected?selectedArticleIds.delete(a.id):selectedArticleIds.add(a.id));renderArticles()}
-async function deleteSelectedArticles(){const ids=[...selectedArticleIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected article(s) from Firestore? This cannot be undone.`))return;try{setStatus(`Deleting ${ids.length} selected article(s)...`);for(let i=0;i<ids.length;i+=450){const batch=writeBatch(db);ids.slice(i,i+450).forEach(id=>batch.delete(doc(db,ARTICLES_COLLECTION,id)));await withTimeout(batch.commit(),120000,"Firestore multiple delete timed out.")}selectedArticleIds.clear();totalArticleCount=Math.max(0,totalArticleCount-ids.length);pageCursors=pageCursors.slice(0,currentPage);await loadArticlesFromFirestore(currentPage);setStatus(`${ids.length} article(s) deleted successfully.`);setTimeout(clearStatus,2500)}catch(err){console.error(err);setStatus("Multiple delete failed: "+err.message,true)}}
+async function deleteSelectedArticles(){const ids=[...selectedArticleIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected article(s) from Firestore? This cannot be undone.`))return;try{setStatus(`Deleting ${ids.length} selected article(s)...`);for(let i=0;i<ids.length;i+=450){const batch=writeBatch(db);ids.slice(i,i+450).forEach(id=>batch.delete(doc(db,ARTICLES_COLLECTION,id)));await withTimeout(batch.commit(),120000,"Firestore multiple delete timed out.")}selectedArticleIds.clear();totalArticleCount=Math.max(0,totalArticleCount-ids.length);pageCursors=pageCursors.slice(0,currentPage);if(globalSearchActive){globalSearchResults=globalSearchResults.filter(a=>!ids.includes(a.id));const maxPage=Math.max(1,Math.ceil(getSearchFilteredResults().length/ARTICLES_PER_PAGE));currentPage=Math.min(currentPage,maxPage);renderArticles()}else await loadArticlesFromFirestore(currentPage);setStatus(`${ids.length} article(s) deleted successfully.`);setTimeout(clearStatus,2500)}catch(err){console.error(err);setStatus("Multiple delete failed: "+err.message,true)}}
 
 async function editArticle(id){try{setStatus("Loading full article...");const snap=await withTimeout(getDoc(doc(db,ARTICLES_COLLECTION,id)),30000,"Article loading timed out.");if(!snap.exists())throw new Error("Article no longer exists.");const a={id:snap.id,...snap.data()};editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";clearStatus();window.scrollTo({top:0,behavior:"smooth"})}catch(err){setStatus("Could not load article: "+err.message,true)}}
-async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");totalArticleCount=Math.max(0,totalArticleCount-1);pageCursors=pageCursors.slice(0,currentPage);await loadArticlesFromFirestore(currentPage)}catch(err){alert("Delete failed: "+err.message)}}
+async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");totalArticleCount=Math.max(0,totalArticleCount-1);pageCursors=pageCursors.slice(0,currentPage);if(globalSearchActive){globalSearchResults=globalSearchResults.filter(a=>a.id!==id);const maxPage=Math.max(1,Math.ceil(getSearchFilteredResults().length/ARTICLES_PER_PAGE));currentPage=Math.min(currentPage,maxPage);renderArticles()}else await loadArticlesFromFirestore(currentPage)}catch(err){alert("Delete failed: "+err.message)}}
 
 function downloadDatabase(){const backup={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,totalArticles:articlesCache.length,articles:articlesCache}; const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});downloadBlob(blob,`news-articles-firestore-backup-${new Date().toISOString().slice(0,10)}.json`)}
 function downloadDatabaseLibraries(){const articles=getFilteredArticles();if(!articles.length){alert("No articles to export.");return}const totalLibraries=Math.ceil(articles.length/LIBRARY_SIZE);if(!confirm(`Download ${totalLibraries} JSON library file(s)? Each library has up to ${LIBRARY_SIZE} articles.`))return;for(let i=0;i<totalLibraries;i++){const chunk=articles.slice(i*LIBRARY_SIZE,(i+1)*LIBRARY_SIZE);const payload={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,libraryNumber:i+1,totalLibraries,totalArticles:articles.length,articles:chunk};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});setTimeout(()=>downloadBlob(blob,`articles_${String(i+1).padStart(4,"0")}.json`),i*250)}}
