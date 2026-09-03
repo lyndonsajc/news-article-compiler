@@ -108,7 +108,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
   <option value="">All Sources</option>
 </select>
 
-<div class="topbar"><button class="secondary" onclick="clearFilters()">Show All Articles</button><button class="secondary" onclick="downloadDatabase()">Download JSON</button><button class="secondary" onclick="downloadDatabaseLibraries()">Download JSON Libraries</button><button class="green" onclick="downloadExcel()">Download Excel</button><button class="green" onclick="downloadWord()">Download Word</button><button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button></div>
+<div class="topbar"><button class="secondary" onclick="clearFilters()">Show All Articles</button><button class="secondary" onclick="downloadDatabase()">Download JSON</button><button class="secondary" onclick="downloadFullDatabase()">Download Full JSON</button><button class="secondary" onclick="downloadDatabaseLibraries()">Download JSON Libraries</button><button class="green" onclick="downloadExcel()">Download Excel</button><button class="green" onclick="downloadFullExcel()">Download Full Excel</button><button class="green" onclick="downloadWord()">Download Word</button><button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button></div>
 <input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)">
 <p class="warning">Compact display: click an article row to expand. Search All Articles searches the full Firestore collection, not only the current page. Date range and preset buttons use publication date.</p></div>
 
@@ -125,7 +125,7 @@ if(sessionStorage.getItem("newsCompilerUnlocked")==="yes"){document.getElementBy
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, getDoc, getDocs, getCountFromServer, query, orderBy, limit, startAfter, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, getDoc, getDocs, getCountFromServer, query, orderBy, limit, startAfter, writeBatch, documentId } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const firebaseConfig={apiKey:"AIzaSyAotyw1bpKRESwzR2b0j19Qn1b81FrI6Bk",authDomain:"news-article-compiler.firebaseapp.com",projectId:"news-article-compiler",storageBucket:"news-article-compiler.firebasestorage.app",messagingSenderId:"1042649880387",appId:"1:1042649880387:web:d5ef710d64f19acdd601f6"};
@@ -138,7 +138,7 @@ const SEARCH_BATCH_SIZE=200;
 const LIBRARY_SIZE=500;
 let renderDebounceTimer=null;
 
-Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,debouncedRenderArticles,clearFilters,clearDateRange,downloadDatabase,downloadExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,deleteSelectedArticles,toggleArticleSelection,toggleSelectCurrentPage,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle,nextPage,prevPage,setPage,toggleKeywordPanel,downloadDatabaseLibraries,searchAllArticles,clearGlobalSearch});
+Object.assign(window,{fetchArticleFromUrl,loadPDF,summarizeWithAI,saveArticle,clearForm,renderArticles,debouncedRenderArticles,clearFilters,clearDateRange,downloadDatabase,downloadFullDatabase,downloadExcel,downloadFullExcel,downloadWord,importDatabase,filterByDate,filterByKeyword,filterByEconomicKeyword,filterByConcept,editArticle,deleteArticle,deleteSelectedArticles,toggleArticleSelection,toggleSelectCurrentPage,toggleArticle,bulkSaveArticles,generateCleanedVersion,goToSavedArticle,nextPage,prevPage,setPage,toggleKeywordPanel,downloadDatabaseLibraries,searchAllArticles,clearGlobalSearch});
 if(sessionStorage.getItem("newsCompilerUnlocked")==="yes")loadArticlesFromFirestore();
 window.addEventListener("newsCompilerUnlocked",loadArticlesFromFirestore);
 
@@ -501,6 +501,35 @@ async function deleteSelectedArticles(){const ids=[...selectedArticleIds];if(!id
 async function editArticle(id){try{setStatus("Loading full article...");const snap=await withTimeout(getDoc(doc(db,ARTICLES_COLLECTION,id)),30000,"Article loading timed out.");if(!snap.exists())throw new Error("Article no longer exists.");const a={id:snap.id,...snap.data()};editingId=a.id;document.getElementById("title").value=a.title||"";document.getElementById("source").value=a.source||"";document.getElementById("publicationDate").value=a.publicationDate||"";document.getElementById("url").value=a.url||"";document.getElementById("articleUrl").value=a.url||"";document.getElementById("content").value=a.fullArticleRaw||a.fullArticle||"";const looseBox=document.getElementById("cleanedLoose");if(looseBox)looseBox.value=a.fullArticleCleanedLoose||"";const strictBox=document.getElementById("cleanedStrict");if(strictBox)strictBox.value=a.fullArticleCleanedStrict||"";const sv=document.getElementById("saveVersion");if(sv)sv.value=a.articleVersionSaved||"raw";clearStatus();window.scrollTo({top:0,behavior:"smooth"})}catch(err){setStatus("Could not load article: "+err.message,true)}}
 async function deleteArticle(id){if(!confirm("Delete this article from Firestore?"))return;try{await withTimeout(deleteDoc(doc(db,ARTICLES_COLLECTION,id)),15000,"Firestore delete timed out.");totalArticleCount=Math.max(0,totalArticleCount-1);pageCursors=pageCursors.slice(0,currentPage);if(globalSearchActive){globalSearchResults=globalSearchResults.filter(a=>a.id!==id);const maxPage=Math.max(1,Math.ceil(getSearchFilteredResults().length/ARTICLES_PER_PAGE));currentPage=Math.min(currentPage,maxPage);renderArticles()}else await loadArticlesFromFirestore(currentPage)}catch(err){alert("Delete failed: "+err.message)}}
 
+async function fetchAllArticlesForExport(){
+  const all=[];
+  let cursor=null;
+  const batchSize=500;
+  while(true){
+    const q=cursor
+      ? query(collection(db,ARTICLES_COLLECTION),orderBy(documentId()),startAfter(cursor),limit(batchSize))
+      : query(collection(db,ARTICLES_COLLECTION),orderBy(documentId()),limit(batchSize));
+    const snap=await withTimeout(getDocs(q),120000,"Full-library export timed out.");
+    if(snap.empty)break;
+    snap.docs.forEach(d=>all.push({id:d.id,...d.data()}));
+    cursor=snap.docs[snap.docs.length-1];
+    setStatus(`Preparing full-library export… ${all.length.toLocaleString()} of ${totalArticleCount.toLocaleString()} loaded`);
+    if(snap.docs.length<batchSize)break;
+  }
+  return all;
+}
+async function downloadFullDatabase(){
+  if(!confirm(`Download the entire Firestore library (${totalArticleCount.toLocaleString()} articles) as one JSON file? This will read the full collection.`))return;
+  try{
+    setStatus("Preparing full JSON export...");
+    const articles=await fetchAllArticlesForExport();
+    const backup={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,totalArticles:articles.length,articles};
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+    downloadBlob(blob,`news-articles-full-library-${new Date().toISOString().slice(0,10)}.json`);
+    setStatus(`Full JSON downloaded: ${articles.length.toLocaleString()} articles.`);
+    setTimeout(clearStatus,3000);
+  }catch(err){console.error(err);setStatus("Full JSON export failed: "+err.message,true)}
+}
 function downloadDatabase(){const backup={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,totalArticles:articlesCache.length,articles:articlesCache}; const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});downloadBlob(blob,`news-articles-firestore-backup-${new Date().toISOString().slice(0,10)}.json`)}
 function downloadDatabaseLibraries(){const articles=getFilteredArticles();if(!articles.length){alert("No articles to export.");return}const totalLibraries=Math.ceil(articles.length/LIBRARY_SIZE);if(!confirm(`Download ${totalLibraries} JSON library file(s)? Each library has up to ${LIBRARY_SIZE} articles.`))return;for(let i=0;i<totalLibraries;i++){const chunk=articles.slice(i*LIBRARY_SIZE,(i+1)*LIBRARY_SIZE);const payload={exportedAt:new Date().toISOString(),collection:ARTICLES_COLLECTION,libraryNumber:i+1,totalLibraries,totalArticles:articles.length,articles:chunk};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});setTimeout(()=>downloadBlob(blob,`articles_${String(i+1).padStart(4,"0")}.json`),i*250)}}
 function downloadExcel(){
@@ -513,6 +542,29 @@ function downloadExcel(){
   const wb=XLSX.utils.book_new(), ws=XLSX.utils.json_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb,ws,"News Articles");
   XLSX.writeFile(wb,`news-articles-minimal-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+async function downloadFullExcel(){
+  if(!confirm(`Download the entire Firestore library (${totalArticleCount.toLocaleString()} articles) as one Excel file? This will read the full collection.`))return;
+  try{
+    setStatus("Preparing full Excel export...");
+    const articles=await fetchAllArticlesForExport();
+    const rows=articles.map(a=>({
+      Title:a.title||"",
+      Source:a.source||"",
+      "Publication Date":a.publicationDate||"",
+      URL:a.url||"",
+      "Saved Article Version":a.articleVersionSaved||"raw",
+      Summary:a.summary||"",
+      "General Keywords":Array.isArray(a.keywords)?a.keywords.join(", "):"",
+      "Economic Terms":Array.isArray(a.economicKeywords)?a.economicKeywords.join(", "):"",
+      "Economics Concepts":Array.isArray(a.economicsConcepts)?a.economicsConcepts.join(", "):""
+    }));
+    const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb,ws,"News Articles");
+    XLSX.writeFile(wb,`news-articles-full-library-${new Date().toISOString().slice(0,10)}.xlsx`);
+    setStatus(`Full Excel downloaded: ${articles.length.toLocaleString()} articles.`);
+    setTimeout(clearStatus,3000);
+  }catch(err){console.error(err);setStatus("Full Excel export failed: "+err.message,true)}
 }
 async function downloadWord(){
   const {Document,Packer,Paragraph,TextRun,HeadingLevel}=window.docx, articles=getFilteredArticles(), children=[];
