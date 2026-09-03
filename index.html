@@ -108,7 +108,7 @@ button.secondary{background:#4b5563}.danger{background:#dc2626}.green{background
   <option value="">All Sources</option>
 </select>
 
-<div class="topbar"><button class="secondary" onclick="clearFilters()">Show All Articles</button><button class="secondary" onclick="downloadDatabase()">Download JSON</button><button class="secondary" onclick="downloadFullDatabase()">Download Full JSON</button><button class="secondary" onclick="downloadDatabaseLibraries()">Download JSON Libraries</button><button class="green" onclick="downloadExcel()">Download Excel</button><button class="green" onclick="downloadFullExcel()">Download Full Excel</button><button class="green" onclick="downloadWord()">Download Word</button><button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button></div>
+<div class="topbar"><button class="secondary" onclick="clearFilters()">Show All Articles</button><button class="secondary" onclick="downloadDatabase()">Download JSON</button><button class="secondary" onclick="downloadFullDatabase()">Download Full JSON</button><button class="secondary" onclick="downloadDatabaseLibraries()">Download JSON Libraries</button><button class="green" onclick="downloadExcel()">Download Excel</button><button class="green" onclick="downloadFullExcel()">Download Full Excel</button><button class="secondary" onclick="downloadFullTextLibrary()">Download Full Text</button><button class="green" onclick="downloadWord()">Download Word</button><button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button></div>
 <input id="importFile" class="hidden" type="file" accept=".json" onchange="importDatabase(event)">
 <p class="warning">Compact display: click an article row to expand. Search All Articles searches the full Firestore collection, not only the current page. Date range and preset buttons use publication date.</p></div>
 
@@ -565,6 +565,33 @@ async function downloadFullExcel(){
     setStatus(`Full Excel downloaded: ${articles.length.toLocaleString()} articles.`);
     setTimeout(clearStatus,3000);
   }catch(err){console.error(err);setStatus("Full Excel export failed: "+err.message,true)}
+}
+async function downloadFullTextLibrary(){
+  if(!confirm(`Download the entire Firestore library (${totalArticleCount.toLocaleString()} articles) as one text file? This will read the full collection.`))return;
+  try{
+    setStatus("Preparing full text library export...");
+    const articles=await fetchAllArticlesForExport();
+    const parts=[];
+    parts.push(`NEWS ARTICLE LIBRARY\nExported: ${new Date().toISOString()}\nArticles: ${articles.length.toLocaleString()}\n\n`);
+    articles.forEach((a,i)=>{
+      const fullText=a.fullArticleRaw||a.fullArticle||a.fullArticleCleanedStrict||a.fullArticleCleanedLoose||"";
+      parts.push(
+        `============================================================\n`+
+        `ARTICLE ${i+1} OF ${articles.length}\n`+
+        `TITLE: ${a.title||""}\n`+
+        `SOURCE: ${a.source||""}\n`+
+        `PUBLICATION DATE: ${a.publicationDate||a.displayDate||""}\n`+
+        `URL: ${a.url||""}\n`+
+        `SAVED VERSION: ${a.articleVersionSaved||"raw"}\n`+
+        `============================================================\n\n`+
+        `${fullText}\n\n\n`
+      );
+    });
+    const blob=new Blob(parts,{type:"text/plain;charset=utf-8"});
+    downloadBlob(blob,`news-articles-full-library-${new Date().toISOString().slice(0,10)}.txt`);
+    setStatus(`Full text library downloaded: ${articles.length.toLocaleString()} articles.`);
+    setTimeout(clearStatus,3000);
+  }catch(err){console.error(err);setStatus("Full text export failed: "+err.message,true)}
 }
 async function downloadWord(){
   const {Document,Packer,Paragraph,TextRun,HeadingLevel}=window.docx, articles=getFilteredArticles(), children=[];
